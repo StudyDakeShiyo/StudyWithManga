@@ -24,6 +24,9 @@
       </div>
       
       <div class="flex items-center gap-2">
+        <button onclick="startStarredWordsTest()" title="별표(즐겨찾기) 단어만 모아서 학습" class="bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold py-2 px-3 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
+          <i class="fa-solid fa-star text-amber-300"></i> 즐겨찾기 회독
+        </button>
         <button onclick="startWrongWordsTest()" title="틀린 단어만 집중 학습" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2 px-3 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
           <i class="fa-solid fa-fire"></i> 오답 노트 시험
         </button>
@@ -104,7 +107,13 @@
           </div>
 
           <!-- Center: Japanese Word & Speech Recognition -->
-          <div class="flex-1 flex flex-col items-center justify-center p-6 bg-slate-50/50 select-none">
+          <div class="flex-1 flex flex-col items-center justify-center p-6 bg-slate-50/50 select-none relative">
+            
+            <!-- 별표(즐겨찾기) 토글 버튼 -->
+            <button onclick="toggleCurrentWordStar()" id="card-star-btn" class="absolute top-4 right-4 text-2xl text-slate-300 hover:text-amber-400 transition-colors p-2 z-10" title="이 단어 즐겨찾기">
+              <i id="card-star-icon" class="fa-regular fa-star"></i>
+            </button>
+
             <div id="card-word" class="text-4xl sm:text-5xl font-extrabold text-slate-800 tracking-wide text-center leading-tight">
               -
             </div>
@@ -230,8 +239,9 @@
       const word = parts[0] ? parts[0].trim() : "";
       const furigana = parts[1] ? parts[1].trim() : word;
       const meaning = parts[2] ? parts[2].trim() : "뜻 없음";
+      const starred = parts[3] === "true" ? true : false;
 
-      return { word, furigana, meaning };
+      return { word, furigana, meaning, starred };
     }
 
     function toHiragana(src) {
@@ -299,8 +309,6 @@
 
       initSTT();
       renderSeriesList();
-
-      // [추가] 모바일 새로고침 대비: 저장된 진행중인 시험 세션 복구 확인
       checkAndRestoreActiveTest();
     }
 
@@ -309,7 +317,6 @@
       localStorage.setItem("jp_word_stats_v9", JSON.stringify(wrongWordStats));
     }
 
-    // [추가] 시험 진행 상황 실시간 백업 (LocalStorage)
     function saveActiveTestState() {
       if (document.getElementById("view-test").classList.contains("hidden")) {
         localStorage.removeItem("jp_active_test_session");
@@ -325,7 +332,6 @@
       localStorage.setItem("jp_active_test_session", JSON.stringify(sessionState));
     }
 
-    // [추가] 새로고침 후 돌아왔을 때 이전 시험 상태 복구 여부 묻기
     function checkAndRestoreActiveTest() {
       const savedSession = localStorage.getItem("jp_active_test_session");
       if (!savedSession) return;
@@ -349,7 +355,6 @@
       localStorage.removeItem("jp_active_test_session");
     }
 
-    // [추가] 모바일 브라우저 닫기/새로고침 방어 경고
     window.addEventListener("beforeunload", (e) => {
       if (!document.getElementById("view-test").classList.contains("hidden")) {
         e.preventDefault();
@@ -413,6 +418,8 @@
       if (!recognition) {
         return alert("현재 사용 중인 브라우저가 음성 인식을 지원하지 않습니다. (Chrome/Edge 사용 권장)");
       }
+      
+      // 버그 수정: 켜져 있는 상태에서 마이크 버튼을 누르면 단어가 넘어가거나 에러가 나던 현상을 막기 위해 정확히 중단만 수행하도록 분기
       if (isListening) {
         isListening = false;
         try { recognition.stop(); } catch(e) {}
@@ -459,7 +466,66 @@
       wrongWordStats[key] = (wrongWordStats[key] || 0) + 1;
       sessionWrongCounts[key] = (sessionWrongCounts[key] || 0) + 1;
       saveData();
-      saveActiveTestState(); // 상태 백업
+      saveActiveTestState();
+    }
+
+    // 즐겨찾기(별표) 토글 함수
+    function toggleCurrentWordStar() {
+      const currentItem = testQueue[currentCardIndex];
+      if (!currentItem) return;
+
+      currentItem.starred = !currentItem.starred;
+      
+      // 원본 데이터(appData) 내 동일 단어 상태 동기화
+      appData.forEach(s => {
+        s.episodes.forEach(e => {
+          e.words.forEach(w => {
+            if (w.word === currentItem.word) {
+              w.starred = currentItem.starred;
+            }
+          });
+        });
+      });
+
+      saveData();
+      updateStarUI(currentItem.starred);
+    }
+
+    function updateStarUI(isStarred) {
+      const icon = document.getElementById("card-star-icon");
+      if (isStarred) {
+        icon.className = "fa-solid fa-star text-amber-400";
+      } else {
+        icon.className = "fa-regular fa-star text-slate-300";
+      }
+    }
+
+    // 별표(즐겨찾기) 단어만 모아서 시험 시작
+    function startStarredWordsTest() {
+      let starredWordsList = [];
+      appData.forEach(s => {
+        s.episodes.forEach(e => {
+          e.words.forEach(w => {
+            if (w.starred && !starredWordsList.some(item => item.word === w.word)) {
+              starredWordsList.push(w);
+            }
+          });
+        });
+      });
+
+      if (starredWordsList.length === 0) {
+        return alert("아직 별표(즐겨찾기)한 단어가 없습니다! 회독 중에 화면 우측 상단의 별표 아이콘을 눌러 추가해보세요.");
+      }
+
+      sessionWrongCounts = {};
+      testQueue = shuffleArray([...starredWordsList]);
+      nextRoundQueue = [];
+      currentCardIndex = 0;
+      currentRound = 1;
+
+      showSection('test');
+      saveActiveTestState();
+      renderCurrentCard();
     }
 
     function exportData() {
@@ -508,7 +574,7 @@
       document.getElementById("view-complete").classList.add("hidden");
 
       if (sectionName === 'list') {
-        localStorage.removeItem("jp_active_test_session"); // 시험 완료/이탈 시 백업 제거
+        localStorage.removeItem("jp_active_test_session");
         renderSeriesList();
         document.getElementById("view-list").classList.remove("hidden");
       } else if (sectionName === 'test') {
@@ -709,9 +775,26 @@
       if (!wordsText) return alert("단어를 입력해주세요.");
 
       const lines = wordsText.split("\n").map(l => l.trim()).filter(l => l.length > 0);
-      const parsedWords = lines.map(line => parseWordLine(line));
-
       const series = appData.find(s => s.id === activeModalSeriesId);
+      
+      let existingStarredMap = {};
+      if (activeModalEpId) {
+        const oldEp = series.episodes.find(e => e.id === activeModalEpId);
+        if (oldEp) {
+          oldEp.words.forEach(w => {
+            if (w.starred) existingStarredMap[w.word] = true;
+          });
+        }
+      }
+
+      const parsedWords = lines.map(line => {
+        const parsed = parseWordLine(line);
+        if (existingStarredMap[parsed.word]) {
+          parsed.starred = true;
+        }
+        return parsed;
+      });
+
       if (activeModalEpId) {
         const ep = series.episodes.find(e => e.id === activeModalEpId);
         ep.title = title;
@@ -755,7 +838,7 @@
       currentRound = 1;
 
       showSection('test');
-      saveActiveTestState(); // 백업 생성
+      saveActiveTestState();
       renderCurrentCard();
     }
 
@@ -781,7 +864,7 @@
       currentRound = 1;
 
       showSection('test');
-      saveActiveTestState(); // 백업 생성
+      saveActiveTestState();
       renderCurrentCard();
     }
 
@@ -806,6 +889,9 @@
 
       document.getElementById("card-word").innerText = item.word;
       
+      // 별표 UI 반영
+      updateStarUI(item.starred);
+
       const furiganaEl = document.getElementById("card-furigana");
       furiganaEl.innerText = item.furigana || item.word;
       furiganaEl.classList.add("opacity-0");
@@ -821,7 +907,6 @@
       document.getElementById("test-remaining").innerText = testQueue.length - currentCardIndex;
       document.getElementById("test-round").innerText = currentRound;
 
-      // 카드 전환 시점마다 상태 동기화 저장
       saveActiveTestState();
     }
 
