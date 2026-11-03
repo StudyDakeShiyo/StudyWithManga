@@ -53,7 +53,7 @@
       <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
         <div>
           <h2 class="text-lg font-bold text-slate-800">단어장 목록</h2>
-          <p class="text-xs text-slate-500 mt-0.5">회차를 선택한 후 아래 시험 버튼을 누르면 회독 시험이 시작됩니다.</p>
+          <p class="text-xs text-slate-500 mt-0.5">회차를 선택한 후 아래 시험 버튼을 누르면 회독 시험이 시작됩니다. (만점 3회 연속 달성 시 MASTER 태그 부여)</p>
         </div>
         <div class="flex items-center gap-2">
           <button id="start-test-btn" onclick="startSelectedTest()" disabled class="bg-slate-300 text-slate-500 font-bold py-2.5 px-6 rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-not-allowed">
@@ -162,7 +162,7 @@
             <i class="fa-solid fa-trophy"></i>
           </div>
           <h2 class="text-2xl font-extrabold text-slate-800">1회독 완료!</h2>
-          <p class="text-xs text-slate-500">모든 단어를 완벽하게 숙지하셨습니다.</p>
+          <p id="complete-master-msg" class="text-xs text-indigo-600 font-semibold"></p>
         </div>
 
         <!-- Wrong Word Analytics Block -->
@@ -276,6 +276,7 @@
 
     let appData = [];
     let wrongWordStats = {};
+    let perfectStreaks = {}; // [추가] 회차별 연속 만점 횟수 추적 기록
     let selectedEpisodeKeys = new Set();
     let activeModalSeriesId = null;
     let activeModalEpId = null;
@@ -285,6 +286,7 @@
     let currentCardIndex = 0;
     let currentRound = 1;
     let sessionWrongCounts = {};
+    let activeTestedEpisodeKeys = []; // [추가] 현재 시험에서 선택된 회차 키 목록
 
     let isFuriganaShown = false;
     let isMeaningShown = false;
@@ -295,6 +297,7 @@
     function initData() {
       const stored = localStorage.getItem("jp_word_app_v9");
       const storedStats = localStorage.getItem("jp_word_stats_v9");
+      const storedStreaks = localStorage.getItem("jp_word_streaks_v9"); // [추가]
 
       if (stored) {
         try { appData = JSON.parse(stored); } catch (e) { appData = initialSeries; }
@@ -307,6 +310,10 @@
         try { wrongWordStats = JSON.parse(storedStats); } catch (e) { wrongWordStats = {}; }
       }
 
+      if (storedStreaks) {
+        try { perfectStreaks = JSON.parse(storedStreaks); } catch (e) { perfectStreaks = {}; }
+      }
+
       initSTT();
       renderSeriesList();
       checkAndRestoreActiveTest();
@@ -315,6 +322,7 @@
     function saveData() {
       localStorage.setItem("jp_word_app_v9", JSON.stringify(appData));
       localStorage.setItem("jp_word_stats_v9", JSON.stringify(wrongWordStats));
+      localStorage.setItem("jp_word_streaks_v9", JSON.stringify(perfectStreaks)); // [추가]
     }
 
     function saveActiveTestState() {
@@ -327,7 +335,8 @@
         nextRoundQueue,
         currentCardIndex,
         currentRound,
-        sessionWrongCounts
+        sessionWrongCounts,
+        activeTestedEpisodeKeys
       };
       localStorage.setItem("jp_active_test_session", JSON.stringify(sessionState));
     }
@@ -345,6 +354,7 @@
             currentCardIndex = parsed.currentCardIndex || 0;
             currentRound = parsed.currentRound || 1;
             sessionWrongCounts = parsed.sessionWrongCounts || {};
+            activeTestedEpisodeKeys = parsed.activeTestedEpisodeKeys || [];
 
             showSection('test');
             renderCurrentCard();
@@ -419,7 +429,6 @@
         return alert("현재 사용 중인 브라우저가 음성 인식을 지원하지 않습니다. (Chrome/Edge 사용 권장)");
       }
       
-      // 버그 수정: 켜져 있는 상태에서 마이크 버튼을 누르면 단어가 넘어가거나 에러가 나던 현상을 막기 위해 정확히 중단만 수행하도록 분기
       if (isListening) {
         isListening = false;
         try { recognition.stop(); } catch(e) {}
@@ -469,14 +478,12 @@
       saveActiveTestState();
     }
 
-    // 즐겨찾기(별표) 토글 함수
     function toggleCurrentWordStar() {
       const currentItem = testQueue[currentCardIndex];
       if (!currentItem) return;
 
       currentItem.starred = !currentItem.starred;
       
-      // 원본 데이터(appData) 내 동일 단어 상태 동기화
       appData.forEach(s => {
         s.episodes.forEach(e => {
           e.words.forEach(w => {
@@ -500,7 +507,6 @@
       }
     }
 
-    // 별표(즐겨찾기) 단어만 모아서 시험 시작
     function startStarredWordsTest() {
       let starredWordsList = [];
       appData.forEach(s => {
@@ -522,6 +528,7 @@
       nextRoundQueue = [];
       currentCardIndex = 0;
       currentRound = 1;
+      activeTestedEpisodeKeys = []; // 개별 단어 모음 시험은 회차 마스터 대상에서 제외
 
       showSection('test');
       saveActiveTestState();
@@ -529,7 +536,7 @@
     }
 
     function exportData() {
-      const exportObj = { appData, wrongWordStats };
+      const exportObj = { appData, wrongWordStats, perfectStreaks };
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj, null, 2));
       const downloadAnchor = document.createElement('a');
       downloadAnchor.setAttribute("href", dataStr);
@@ -550,6 +557,7 @@
           if (imported.appData) {
             appData = imported.appData;
             wrongWordStats = imported.wrongWordStats || {};
+            perfectStreaks = imported.perfectStreaks || {};
           } else if (Array.isArray(imported)) {
             appData = imported;
           }
@@ -638,12 +646,20 @@
           series.episodes.forEach(ep => {
             const key = `${series.id}:${ep.id}`;
             const isChecked = selectedEpisodeKeys.has(key) ? "checked" : "";
+            
+            // [추가] 3번 연속 만점 달성 여부 확인하여 MASTER 배지 렌더링
+            const streakCount = perfectStreaks[key] || 0;
+            const isMaster = streakCount >= 3;
+            const masterBadgeHtml = isMaster 
+              ? `<span class="bg-amber-100 text-amber-700 text-[10px] font-extrabold px-1.5 py-0.5 rounded border border-amber-300 flex items-center gap-1"><i class="fa-solid fa-crown text-amber-500"></i> MASTER</span>`
+              : `<span class="text-[11px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">${ep.words.length}단어</span>`;
+
             episodesHtml += `
               <div class="flex items-center justify-between py-2 px-3 hover:bg-slate-50 rounded-lg transition-colors border border-slate-100">
                 <label class="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0 mr-2">
                   <input type="checkbox" onchange="toggleEpisodeSelection('${key}')" ${isChecked} class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
                   <span class="text-sm font-semibold text-slate-700 truncate">${escapeHtml(ep.title)}</span>
-                  <span class="text-[11px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">${ep.words.length}단어</span>
+                  ${masterBadgeHtml}
                 </label>
                 <div class="flex items-center gap-1">
                   <button onclick="openEpisodeModal('${series.id}', '${ep.id}')" class="text-slate-400 hover:text-indigo-600 p-1 text-xs"><i class="fa-solid fa-pen"></i></button>
@@ -820,6 +836,8 @@
     function startSelectedTest() {
       if (selectedEpisodeKeys.size === 0) return;
       let combinedWords = [];
+      activeTestedEpisodeKeys = Array.from(selectedEpisodeKeys); // [추가] 선택된 회차 키 백업
+
       selectedEpisodeKeys.forEach(key => {
         const [sId, eId] = key.split(":");
         const series = appData.find(s => s.id === sId);
@@ -862,6 +880,7 @@
       nextRoundQueue = [];
       currentCardIndex = 0;
       currentRound = 1;
+      activeTestedEpisodeKeys = []; // 오답노트 시험은 회차 마스터 대상에서 제외
 
       showSection('test');
       saveActiveTestState();
@@ -873,6 +892,8 @@
 
       if (currentCardIndex >= testQueue.length) {
         if (nextRoundQueue.length === 0) {
+          // [추가] 시험 완료 시점: 이번 시험에서 오답이 하나도 없었다면(만점), 선택된 모든 회차의 연속 만점 카운트 증가 처리
+          handleTestCompletion();
           showSection('complete');
           return;
         } else {
@@ -889,7 +910,6 @@
 
       document.getElementById("card-word").innerText = item.word;
       
-      // 별표 UI 반영
       updateStarUI(item.starred);
 
       const furiganaEl = document.getElementById("card-furigana");
@@ -908,6 +928,34 @@
       document.getElementById("test-round").innerText = currentRound;
 
       saveActiveTestState();
+    }
+
+    // [추가] 만점 여부 확인 및 3회 연속 달성 처리 로직
+    function handleTestCompletion() {
+      const isPerfectScore = Object.keys(sessionWrongCounts).length === 0;
+      const masterMsgEl = document.getElementById("complete-master-msg");
+
+      if (isPerfectScore && activeTestedEpisodeKeys.length > 0) {
+        let newlyMastered = [];
+        activeTestedEpisodeKeys.forEach(epKey => {
+          const currentStreak = perfectStreaks[epKey] || 0;
+          const nextStreak = currentStreak + 1;
+          perfectStreaks[epKey] = nextStreak;
+
+          if (nextStreak === 3) {
+            newlyMastered.push(epKey);
+          }
+        });
+        saveData();
+
+        if (newlyMastered.length > 0) {
+          masterMsgEl.innerHTML = `🎉 축하합니다! 선택하신 회차가 <span class="text-amber-600 font-bold">3회 연속 만점</span>을 달성하여 <span class="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-300 font-bold"><i class="fa-solid fa-crown"></i> MASTER</span> 태그를 획득했습니다!`;
+        } else {
+          masterMsgEl.innerText = `만점 클리어! (연속 만점 기록: 회차별 누적 진행 중)`;
+        }
+      } else {
+        masterMsgEl.innerText = "모든 단어를 완벽하게 숙지하셨습니다.";
+      }
     }
 
     function renderAnalytics() {
