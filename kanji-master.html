@@ -1,0 +1,922 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>일본어 단어 회독 서비스</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    body {
+      font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
+    }
+  </style>
+</head>
+<body class="bg-slate-100 min-h-screen text-slate-800 antialiased flex flex-col">
+
+  <!-- Header -->
+  <header class="bg-indigo-600 text-white shadow-md sticky top-0 z-30">
+    <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-2">
+      <div class="flex items-center gap-3 cursor-pointer" onclick="showSection('list')">
+        <i class="fa-solid fa-book-bookmark text-2xl text-amber-300"></i>
+        <h1 class="text-xl font-bold tracking-tight">일본어 단어 회독 서비스</h1>
+      </div>
+      
+      <div class="flex items-center gap-2">
+        <button onclick="startWrongWordsTest()" title="틀린 단어만 집중 학습" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2 px-3 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
+          <i class="fa-solid fa-fire"></i> 오답 노트 시험
+        </button>
+        <button onclick="exportData()" title="데이터 파일 저장 (백업)" class="bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-semibold py-2 px-3 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
+          <i class="fa-solid fa-download"></i> 내보내기
+        </button>
+        <label title="데이터 파일 불러오기 (복원)" class="bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-semibold py-2 px-3 rounded-lg transition-all flex items-center gap-1.5 shadow-sm cursor-pointer">
+          <i class="fa-solid fa-upload"></i> 가져오기
+          <input type="file" id="import-file" accept=".json" onchange="importData(event)" class="hidden">
+        </label>
+        <button onclick="openSeriesModal()" class="bg-indigo-500 hover:bg-indigo-400 text-white text-xs sm:text-sm font-semibold py-2 px-3.5 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
+          <i class="fa-solid fa-plus"></i> 새 시리즈
+        </button>
+      </div>
+    </div>
+  </header>
+
+  <!-- Main Content Area -->
+  <main class="max-w-5xl mx-auto w-full px-4 py-6 flex-1 flex flex-col">
+
+    <!-- 1. SERIES LIST & TEST SELECTOR VIEW -->
+    <div id="view-list" class="space-y-6">
+      <!-- Action Bar -->
+      <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-wrap justify-between items-center gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-slate-800">단어장 목록</h2>
+          <p class="text-xs text-slate-500 mt-0.5">회차를 선택한 후 아래 시험 버튼을 누르면 회독 시험이 시작됩니다.</p>
+        </div>
+        <div class="flex items-center gap-2">
+          <button id="start-test-btn" onclick="startSelectedTest()" disabled class="bg-slate-300 text-slate-500 font-bold py-2.5 px-6 rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-not-allowed">
+            <i class="fa-solid fa-play"></i> 선택 회차 시험 보기 (<span id="selected-count">0</span>)
+          </button>
+        </div>
+      </div>
+
+      <!-- Series Grid -->
+      <div id="series-container" class="grid grid-cols-1 md:grid-cols-2 gap-5">
+        <!-- Dynamic Series Cards -->
+      </div>
+    </div>
+
+    <!-- 2. FLASHCARD TEST VIEW -->
+    <div id="view-test" class="hidden flex-1 flex flex-col max-w-2xl mx-auto w-full py-2">
+      <!-- Test Top Bar -->
+      <div class="flex justify-between items-center mb-4 bg-white p-3.5 rounded-xl shadow-sm border border-slate-200">
+        <button onclick="confirmExitTest()" class="text-slate-500 hover:text-rose-600 transition-colors font-medium text-sm flex items-center gap-1.5">
+          <i class="fa-solid fa-xmark text-base"></i> 시험 종료
+        </button>
+        <div class="text-center">
+          <div class="text-xs font-semibold text-indigo-600 uppercase tracking-wider">회독 진행 현황</div>
+          <div class="text-sm font-bold text-slate-700">
+            남은 단어: <span id="test-remaining" class="text-indigo-600 text-base">0</span>개 / 라운드 <span id="test-round">1</span>
+          </div>
+        </div>
+        <div class="text-xs text-slate-400 font-mono hidden sm:block">단축키 (← → A S D Space)</div>
+      </div>
+
+      <!-- Main Flashcard Area -->
+      <div class="flex-1 flex flex-col min-h-[440px]">
+        <!-- 4-Split Card -->
+        <div class="bg-white rounded-2xl shadow-md border-2 border-slate-200 flex-1 flex flex-col overflow-hidden relative">
+          
+          <!-- Top Row (Hints) -->
+          <div class="grid grid-cols-2 border-b border-slate-100 min-h-[110px]">
+            <!-- Top-Left: Furigana / Pronunciation -->
+            <button onclick="toggleFurigana()" class="p-3.5 border-r border-slate-100 hover:bg-indigo-50/50 transition-colors flex flex-col items-center justify-center text-center group relative">
+              <span class="absolute top-2 left-2 text-[10px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">발음 (A)</span>
+              <span id="card-furigana" class="text-lg font-bold text-indigo-600 opacity-0 transition-opacity">---</span>
+              <span id="hint-furigana-label" class="text-xs text-slate-400 group-hover:text-indigo-500 transition-colors mt-1">클릭하여 발음 확인</span>
+            </button>
+
+            <!-- Top-Right: Korean Meaning -->
+            <button onclick="toggleMeaning()" class="p-4 hover:bg-indigo-50/50 transition-colors flex flex-col items-center justify-center text-center group relative">
+              <span class="absolute top-2 right-2 text-[10px] font-bold text-indigo-500 bg-indigo-50 px-1.5 py-0.5 rounded border border-indigo-100">뜻 (S)</span>
+              <span id="card-meaning" class="text-base font-semibold text-slate-800 opacity-0 transition-opacity">---</span>
+              <span id="hint-meaning-label" class="text-xs text-slate-400 group-hover:text-indigo-500 transition-colors mt-1">클릭하여 한국어 뜻 확인</span>
+            </button>
+          </div>
+
+          <!-- Center: Japanese Word & Speech Recognition -->
+          <div class="flex-1 flex flex-col items-center justify-center p-6 bg-slate-50/50 select-none">
+            <div id="card-word" class="text-4xl sm:text-5xl font-extrabold text-slate-800 tracking-wide text-center leading-tight">
+              -
+            </div>
+
+            <!-- Action Controls (TTS & STT Mic) -->
+            <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
+              <button onclick="playCurrentTTS()" class="text-xs font-semibold text-slate-600 hover:text-indigo-600 transition-colors flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-full shadow-sm border border-slate-200">
+                <i class="fa-solid fa-volume-high text-indigo-500"></i> 음성 듣기 (Space)
+              </button>
+
+              <button id="stt-btn" onclick="toggleSpeechRecognition()" class="text-xs font-semibold text-white bg-rose-500 hover:bg-rose-600 transition-all flex items-center gap-1.5 px-3.5 py-1.5 rounded-full shadow-sm">
+                <i class="fa-solid fa-microphone"></i> <span id="stt-btn-text">발음하기 (D)</span>
+              </button>
+            </div>
+
+            <!-- Voice Feedback Status -->
+            <div id="stt-status" class="mt-2 text-xs font-semibold text-slate-400 h-5 flex items-center justify-center">
+              마이크 버튼을 누르고 일본어로 발음해보세요
+            </div>
+          </div>
+
+          <!-- Bottom Row (Action Buttons) -->
+          <div class="grid grid-cols-2 border-t border-slate-200 h-20">
+            <!-- Bottom-Left: Don't Know -->
+            <button onclick="markIncorrect()" class="bg-rose-50 hover:bg-rose-100 text-rose-700 font-bold border-r border-slate-200 flex flex-col items-center justify-center transition-colors">
+              <span class="text-base sm:text-lg flex items-center gap-1.5"><i class="fa-solid fa-xmark"></i> 모르겠음</span>
+              <span class="text-[11px] font-normal text-rose-500">다음 라운드로 이관 (←)</span>
+            </button>
+
+            <!-- Bottom-Right: Know -->
+            <button onclick="markCorrect()" class="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 font-bold flex flex-col items-center justify-center transition-colors">
+              <span class="text-base sm:text-lg flex items-center gap-1.5"><i class="fa-solid fa-check"></i> 알고있음</span>
+              <span class="text-[11px] font-normal text-emerald-600">완료 처리 (→)</span>
+            </button>
+          </div>
+
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. TEST COMPLETE & ERROR ANALYTICS VIEW -->
+    <div id="view-complete" class="hidden flex-1 flex items-center justify-center py-6">
+      <div class="bg-white p-6 sm:p-8 rounded-2xl shadow-md border border-slate-200 max-w-lg w-full space-y-5">
+        <div class="text-center space-y-2">
+          <div class="w-16 h-16 bg-emerald-100 text-emerald-500 rounded-full flex items-center justify-center mx-auto text-3xl shadow-inner">
+            <i class="fa-solid fa-trophy"></i>
+          </div>
+          <h2 class="text-2xl font-extrabold text-slate-800">1회독 완료!</h2>
+          <p class="text-xs text-slate-500">모든 단어를 완벽하게 숙지하셨습니다.</p>
+        </div>
+
+        <!-- Wrong Word Analytics Block -->
+        <div class="bg-slate-50 p-4 rounded-xl border border-slate-200">
+          <h3 class="text-sm font-bold text-slate-700 flex items-center gap-1.5 mb-2">
+            <i class="fa-solid fa-chart-pie text-rose-500"></i> 이번 회독 오답 분석 (가장 많이 틀린 단어)
+          </h3>
+          <div id="analytics-list" class="space-y-1.5 max-h-40 overflow-y-auto text-xs">
+            <!-- Dynamic analytics inserted here -->
+          </div>
+        </div>
+
+        <div class="flex gap-2">
+          <button onclick="startWrongWordsTest()" class="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-sm text-xs sm:text-sm">
+            오답 노트 집중 회독
+          </button>
+          <button onclick="showSection('list')" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-sm text-xs sm:text-sm">
+            목록으로 돌아가기
+          </button>
+        </div>
+      </div>
+    </div>
+
+  </main>
+
+  <!-- MODAL: CREATE / EDIT SERIES -->
+  <div id="series-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl space-y-4">
+      <h3 id="series-modal-title" class="text-lg font-bold text-slate-800">새 시리즈 추가</h3>
+      
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">시리즈 제목</label>
+        <input type="text" id="input-series-title" placeholder="예: きみが死ぬまで恋をしたい" class="w-full px-3.5 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">표지 이미지 업로드 (JPG, PNG, WEBP)</label>
+        <input type="file" id="input-series-cover" accept="image/jpeg, image/png, image/webp" class="w-full text-xs text-slate-500 file:mr-3 file:py-1.5 file:px-3 file:rounded-lg file:border-0 file:text-xs file:font-semibold file:bg-indigo-50 file:text-indigo-600 hover:file:bg-indigo-100 cursor-pointer">
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeSeriesModal()" class="px-4 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-100 rounded-lg">취소</button>
+        <button onclick="saveSeries()" class="px-4 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: CREATE / EDIT EPISODE -->
+  <div id="episode-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-4">
+      <h3 id="episode-modal-title" class="text-lg font-bold text-slate-800">회차 추가</h3>
+      
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">회차 타이틀</label>
+        <input type="text" id="input-episode-title" placeholder="예: 1화 好きな人" class="w-full px-3.5 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+      </div>
+
+      <div>
+        <label class="block text-xs font-semibold text-slate-600 mb-1">단어장 리스트 (줄바꿈 구분)</label>
+        <p class="text-[11px] text-indigo-600 font-semibold mb-1.5">입력 형식: <code class="bg-indigo-50 px-1 py-0.5 rounded border border-indigo-100">단어:발음:뜻</code> (예: 子:こ:아이)</p>
+        <textarea id="input-episode-words" rows="8" placeholder="子:こ:아이&#10;惚気:のろけ:염장지르기&#10;好きな人:すきなひと:좋아하는 사람" class="w-full p-3 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-mono leading-relaxed"></textarea>
+      </div>
+
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeEpisodeModal()" class="px-4 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-100 rounded-lg">취소</button>
+        <button onclick="saveEpisode()" class="px-4 py-2 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg shadow-sm">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    function parseWordLine(line) {
+      const parts = line.split(":");
+      const word = parts[0] ? parts[0].trim() : "";
+      const furigana = parts[1] ? parts[1].trim() : word;
+      const meaning = parts[2] ? parts[2].trim() : "뜻 없음";
+
+      return { word, furigana, meaning };
+    }
+
+    function toHiragana(src) {
+      if (!src) return "";
+      return src.replace(/[\u30a1-\u30f6]/g, function(match) {
+        return String.fromCharCode(match.charCodeAt(0) - 0x60);
+      }).toLowerCase().replace(/\s+/g, '');
+    }
+
+    const initialSeries = [
+      {
+        id: "series-sample-1",
+        title: "きみが死ぬまで恋をしたい",
+        cover: null,
+        episodes: [
+          {
+            id: "ep-sample-1",
+            title: "1화 好きな人",
+            words: [
+              "子:こ:아이",
+              "惚気:のろけ:염장지르기",
+              "好きな人:すきなひと:좋아하는 사람",
+              "全然:ぜんぜん:전혀",
+              "眠れなかった:ねむれなかった:잠들지 못했다",
+              "今日:きょう:오늘",
+              "廊下:ろうか:복도"
+            ].map(l => parseWordLine(l))
+          }
+        ]
+      }
+    ];
+
+    let appData = [];
+    let wrongWordStats = {};
+    let selectedEpisodeKeys = new Set();
+    let activeModalSeriesId = null;
+    let activeModalEpId = null;
+
+    let testQueue = [];
+    let nextRoundQueue = [];
+    let currentCardIndex = 0;
+    let currentRound = 1;
+    let sessionWrongCounts = {};
+
+    let isFuriganaShown = false;
+    let isMeaningShown = false;
+
+    let recognition = null;
+    let isListening = false;
+
+    function initData() {
+      const stored = localStorage.getItem("jp_word_app_v9");
+      const storedStats = localStorage.getItem("jp_word_stats_v9");
+
+      if (stored) {
+        try { appData = JSON.parse(stored); } catch (e) { appData = initialSeries; }
+      } else {
+        appData = initialSeries;
+        saveData();
+      }
+
+      if (storedStats) {
+        try { wrongWordStats = JSON.parse(storedStats); } catch (e) { wrongWordStats = {}; }
+      }
+
+      initSTT();
+      renderSeriesList();
+
+      // [추가] 모바일 새로고침 대비: 저장된 진행중인 시험 세션 복구 확인
+      checkAndRestoreActiveTest();
+    }
+
+    function saveData() {
+      localStorage.setItem("jp_word_app_v9", JSON.stringify(appData));
+      localStorage.setItem("jp_word_stats_v9", JSON.stringify(wrongWordStats));
+    }
+
+    // [추가] 시험 진행 상황 실시간 백업 (LocalStorage)
+    function saveActiveTestState() {
+      if (document.getElementById("view-test").classList.contains("hidden")) {
+        localStorage.removeItem("jp_active_test_session");
+        return;
+      }
+      const sessionState = {
+        testQueue,
+        nextRoundQueue,
+        currentCardIndex,
+        currentRound,
+        sessionWrongCounts
+      };
+      localStorage.setItem("jp_active_test_session", JSON.stringify(sessionState));
+    }
+
+    // [추가] 새로고침 후 돌아왔을 때 이전 시험 상태 복구 여부 묻기
+    function checkAndRestoreActiveTest() {
+      const savedSession = localStorage.getItem("jp_active_test_session");
+      if (!savedSession) return;
+
+      try {
+        const parsed = JSON.parse(savedSession);
+        if (parsed.testQueue && parsed.testQueue.length > 0 && parsed.currentCardIndex < parsed.testQueue.length) {
+          if (confirm("이전에 진행 중이던 회독 시험 데이터가 있습니다. 이어서 진행하시겠습니까?")) {
+            testQueue = parsed.testQueue;
+            nextRoundQueue = parsed.nextRoundQueue || [];
+            currentCardIndex = parsed.currentCardIndex || 0;
+            currentRound = parsed.currentRound || 1;
+            sessionWrongCounts = parsed.sessionWrongCounts || {};
+
+            showSection('test');
+            renderCurrentCard();
+            return;
+          }
+        }
+      } catch (e) {}
+      localStorage.removeItem("jp_active_test_session");
+    }
+
+    // [추가] 모바일 브라우저 닫기/새로고침 방어 경고
+    window.addEventListener("beforeunload", (e) => {
+      if (!document.getElementById("view-test").classList.contains("hidden")) {
+        e.preventDefault();
+        e.returnValue = "";
+      }
+    });
+
+    function initSTT() {
+      const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+      if (SpeechRecognition) {
+        recognition = new SpeechRecognition();
+        recognition.lang = 'ja-JP';
+        recognition.interimResults = false;
+        recognition.maxAlternatives = 5;
+        recognition.continuous = true;
+
+        recognition.onstart = function() {
+          isListening = true;
+          document.getElementById("stt-btn").className = "text-xs font-semibold text-white bg-amber-500 animate-pulse transition-all flex items-center gap-1.5 px-3.5 py-1.5 rounded-full shadow-sm";
+          document.getElementById("stt-btn-text").innerText = "듣고 있습니다...";
+          document.getElementById("stt-status").innerHTML = `<span class="text-amber-600 font-bold">📢 발음하는 중...</span>`;
+        };
+
+        recognition.onresult = function(event) {
+          const latestIndex = event.results.length - 1;
+          const results = Array.from(event.results[latestIndex]).map(r => r.transcript.trim());
+          checkSpeechResult(results);
+        };
+
+        recognition.onerror = function(event) {
+          if (event.error !== 'no-speech' && event.error !== 'aborted') {
+            stopListeningUI();
+            document.getElementById("stt-status").innerHTML = `<span class="text-rose-500">음성 인식 오류 (${event.error})</span>`;
+          }
+        };
+
+        recognition.onend = function() {
+          if (isListening && !document.getElementById("view-test").classList.contains("hidden")) {
+            try { recognition.start(); } catch (e) {}
+          } else {
+            stopListeningUI();
+          }
+        };
+      }
+    }
+
+    function stopListeningUI() {
+      isListening = false;
+      const btn = document.getElementById("stt-btn");
+      if (btn) {
+        btn.className = "text-xs font-semibold text-white bg-rose-500 hover:bg-rose-600 transition-all flex items-center gap-1.5 px-3.5 py-1.5 rounded-full shadow-sm";
+        document.getElementById("stt-btn-text").innerText = "발음하기 (D)";
+      }
+      const statusEl = document.getElementById("stt-status");
+      if (statusEl) {
+        statusEl.innerText = "마이크 버튼을 누르고 일본어로 발음해보세요";
+      }
+    }
+
+    function toggleSpeechRecognition() {
+      if (!recognition) {
+        return alert("현재 사용 중인 브라우저가 음성 인식을 지원하지 않습니다. (Chrome/Edge 사용 권장)");
+      }
+      if (isListening) {
+        isListening = false;
+        try { recognition.stop(); } catch(e) {}
+        stopListeningUI();
+      } else {
+        isListening = true;
+        try {
+          recognition.start();
+        } catch (e) {
+          try { recognition.stop(); recognition.start(); } catch(err) {}
+        }
+      }
+    }
+
+    function checkSpeechResult(spokenTranscripts) {
+      const currentItem = testQueue[currentCardIndex];
+      if (!currentItem) return;
+
+      const rawWordKana = toHiragana(currentItem.word);
+      const rawFuriganaKana = toHiragana(currentItem.furigana);
+
+      const isMatched = spokenTranscripts.some(spoken => {
+        const spokenKana = toHiragana(spoken);
+        return spokenKana === rawWordKana ||
+               spokenKana === rawFuriganaKana ||
+               spokenKana.includes(rawFuriganaKana) ||
+               rawFuriganaKana.includes(spokenKana);
+      });
+
+      const statusEl = document.getElementById("stt-status");
+
+      if (isMatched) {
+        statusEl.innerHTML = `<span class="text-emerald-600 font-extrabold flex items-center gap-1"><i class="fa-solid fa-circle-check"></i> 정답입니다! (${spokenTranscripts[0]})</span>`;
+        try { recognition.stop(); } catch(e) {}
+        setTimeout(() => { markCorrect(); }, 500);
+      } else {
+        recordWrongWord(currentItem);
+        statusEl.innerHTML = `<span class="text-rose-600 font-semibold">인식된 발음: "${spokenTranscripts[0]}" (다시 시도)</span>`;
+      }
+    }
+
+    function recordWrongWord(item) {
+      const key = item.word;
+      wrongWordStats[key] = (wrongWordStats[key] || 0) + 1;
+      sessionWrongCounts[key] = (sessionWrongCounts[key] || 0) + 1;
+      saveData();
+      saveActiveTestState(); // 상태 백업
+    }
+
+    function exportData() {
+      const exportObj = { appData, wrongWordStats };
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `jp_words_backup_${new Date().toISOString().slice(0,10)}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+    }
+
+    function importData(event) {
+      const file = event.target.files[0];
+      if (!file) return;
+
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        try {
+          const imported = JSON.parse(e.target.result);
+          if (imported.appData) {
+            appData = imported.appData;
+            wrongWordStats = imported.wrongWordStats || {};
+          } else if (Array.isArray(imported)) {
+            appData = imported;
+          }
+          saveData();
+          renderSeriesList();
+          alert("데이터가 성공적으로 불러와졌습니다!");
+        } catch (err) {
+          alert("파일을 읽는 도중 오류가 발생했습니다.");
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    function showSection(sectionName) {
+      if (isListening && recognition) {
+        isListening = false;
+        try { recognition.stop(); } catch(e) {}
+      }
+
+      document.getElementById("view-list").classList.add("hidden");
+      document.getElementById("view-test").classList.add("hidden");
+      document.getElementById("view-complete").classList.add("hidden");
+
+      if (sectionName === 'list') {
+        localStorage.removeItem("jp_active_test_session"); // 시험 완료/이탈 시 백업 제거
+        renderSeriesList();
+        document.getElementById("view-list").classList.remove("hidden");
+      } else if (sectionName === 'test') {
+        document.getElementById("view-test").classList.remove("hidden");
+      } else if (sectionName === 'complete') {
+        localStorage.removeItem("jp_active_test_session");
+        renderAnalytics();
+        document.getElementById("view-complete").classList.remove("hidden");
+      }
+    }
+
+    function compressImage(file, callback) {
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        const img = new Image();
+        img.onload = function() {
+          const canvas = document.createElement('canvas');
+          const maxDim = 300;
+          let width = img.width;
+          let height = img.height;
+          if (width > height) {
+            if (width > maxDim) { height *= maxDim / width; width = maxDim; }
+          } else {
+            if (height > maxDim) { width *= maxDim / height; height = maxDim; }
+          }
+          canvas.width = width;
+          canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          ctx.drawImage(img, 0, 0, width, height);
+          callback(canvas.toDataURL('image/jpeg', 0.8));
+        };
+        img.src = e.target.result;
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function renderSeriesList() {
+      const container = document.getElementById("series-container");
+      container.innerHTML = "";
+
+      if (appData.length === 0) {
+        container.innerHTML = `
+          <div class="col-span-full bg-white p-8 text-center rounded-xl border border-slate-200">
+            <p class="text-slate-400 text-sm">등록된 시리즈가 없습니다. [새 시리즈] 버튼을 눌러 추가해보세요!</p>
+          </div>`;
+        return;
+      }
+
+      appData.forEach(series => {
+        const card = document.createElement("div");
+        card.className = "bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden flex flex-col";
+
+        const coverHtml = series.cover 
+          ? `<img src="${series.cover}" class="w-full h-full object-cover">`
+          : `<div class="w-full h-full bg-indigo-100 flex items-center justify-center text-indigo-400"><i class="fa-solid fa-book text-3xl"></i></div>`;
+
+        let episodesHtml = "";
+        if (series.episodes.length === 0) {
+          episodesHtml = `<p class="text-xs text-slate-400 py-2">등록된 회차가 없습니다.</p>`;
+        } else {
+          series.episodes.forEach(ep => {
+            const key = `${series.id}:${ep.id}`;
+            const isChecked = selectedEpisodeKeys.has(key) ? "checked" : "";
+            episodesHtml += `
+              <div class="flex items-center justify-between py-2 px-3 hover:bg-slate-50 rounded-lg transition-colors border border-slate-100">
+                <label class="flex items-center gap-2.5 cursor-pointer flex-1 min-w-0 mr-2">
+                  <input type="checkbox" onchange="toggleEpisodeSelection('${key}')" ${isChecked} class="w-4 h-4 text-indigo-600 rounded border-slate-300 focus:ring-indigo-500">
+                  <span class="text-sm font-semibold text-slate-700 truncate">${escapeHtml(ep.title)}</span>
+                  <span class="text-[11px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">${ep.words.length}단어</span>
+                </label>
+                <div class="flex items-center gap-1">
+                  <button onclick="openEpisodeModal('${series.id}', '${ep.id}')" class="text-slate-400 hover:text-indigo-600 p-1 text-xs"><i class="fa-solid fa-pen"></i></button>
+                  <button onclick="deleteEpisode('${series.id}', '${ep.id}')" class="text-slate-400 hover:text-rose-500 p-1 text-xs"><i class="fa-solid fa-trash"></i></button>
+                </div>
+              </div>
+            `;
+          });
+        }
+
+        card.innerHTML = `
+          <div class="p-4 flex gap-4 border-b border-slate-100 bg-slate-50/50">
+            <div class="w-16 h-20 rounded-lg overflow-hidden shrink-0 shadow-sm border border-slate-200">${coverHtml}</div>
+            <div class="flex-1 min-w-0 flex flex-col justify-between">
+              <div>
+                <h3 class="font-bold text-slate-800 text-base truncate">${escapeHtml(series.title)}</h3>
+                <p class="text-xs text-slate-400 mt-1">총 ${series.episodes.length}개 회차</p>
+              </div>
+              <div class="flex items-center gap-2">
+                <button onclick="openEpisodeModal('${series.id}')" class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-600 font-semibold px-2.5 py-1 rounded-md transition-colors">+ 회차 추가</button>
+                <button onclick="openSeriesModal('${series.id}')" class="text-xs text-slate-400 hover:text-indigo-600 px-1.5 py-1">수정</button>
+                <button onclick="deleteSeries('${series.id}')" class="text-xs text-slate-400 hover:text-rose-500 px-1.5 py-1">삭제</button>
+              </div>
+            </div>
+          </div>
+          <div class="p-3 space-y-1.5 flex-1 max-h-56 overflow-y-auto">${episodesHtml}</div>
+        `;
+        container.appendChild(card);
+      });
+
+      updateSelectionUI();
+    }
+
+    function toggleEpisodeSelection(key) {
+      if (selectedEpisodeKeys.has(key)) selectedEpisodeKeys.delete(key);
+      else selectedEpisodeKeys.add(key);
+      updateSelectionUI();
+    }
+
+    function updateSelectionUI() {
+      const btn = document.getElementById("start-test-btn");
+      const countEl = document.getElementById("selected-count");
+      countEl.innerText = selectedEpisodeKeys.size;
+
+      if (selectedEpisodeKeys.size > 0) {
+        btn.disabled = false;
+        btn.className = "bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2.5 px-6 rounded-xl transition-all shadow-md cursor-pointer flex items-center gap-2";
+      } else {
+        btn.disabled = true;
+        btn.className = "bg-slate-300 text-slate-500 font-bold py-2.5 px-6 rounded-xl transition-all shadow-sm flex items-center gap-2 cursor-not-allowed";
+      }
+    }
+
+    function openSeriesModal(seriesId = null) {
+      activeModalSeriesId = seriesId;
+      const titleInput = document.getElementById("input-series-title");
+      const coverInput = document.getElementById("input-series-cover");
+      coverInput.value = "";
+
+      if (seriesId) {
+        const series = appData.find(s => s.id === seriesId);
+        document.getElementById("series-modal-title").innerText = "시리즈 수정";
+        titleInput.value = series.title;
+      } else {
+        document.getElementById("series-modal-title").innerText = "새 시리즈 추가";
+        titleInput.value = "";
+      }
+      document.getElementById("series-modal").classList.remove("hidden");
+    }
+
+    function closeSeriesModal() { document.getElementById("series-modal").classList.add("hidden"); }
+
+    function saveSeries() {
+      const title = document.getElementById("input-series-title").value.trim();
+      const file = document.getElementById("input-series-cover").files[0];
+      if (!title) return alert("시리즈 제목을 입력해주세요.");
+
+      const applyData = (coverData) => {
+        if (activeModalSeriesId) {
+          const series = appData.find(s => s.id === activeModalSeriesId);
+          series.title = title;
+          if (coverData !== undefined) series.cover = coverData;
+        } else {
+          appData.push({ id: "series-" + Date.now(), title: title, cover: coverData || null, episodes: [] });
+        }
+        saveData();
+        renderSeriesList();
+        closeSeriesModal();
+      };
+
+      if (file) compressImage(file, (base64) => applyData(base64));
+      else applyData(undefined);
+    }
+
+    function deleteSeries(seriesId) {
+      if (!confirm("해당 시리즈와 모든 회차가 삭제됩니다. 진행하시겠습니까?")) return;
+      appData = appData.filter(s => s.id !== seriesId);
+      selectedEpisodeKeys.forEach(key => { if (key.startsWith(seriesId + ":")) selectedEpisodeKeys.delete(key); });
+      saveData();
+      renderSeriesList();
+    }
+
+    function openEpisodeModal(seriesId, epId = null) {
+      activeModalSeriesId = seriesId;
+      activeModalEpId = epId;
+      const titleInput = document.getElementById("input-episode-title");
+      const wordsInput = document.getElementById("input-episode-words");
+
+      if (epId) {
+        const series = appData.find(s => s.id === seriesId);
+        const ep = series.episodes.find(e => e.id === epId);
+        document.getElementById("episode-modal-title").innerText = "회차 수정";
+        titleInput.value = ep.title;
+        wordsInput.value = ep.words.map(w => `${w.word}:${w.furigana}:${w.meaning}`).join("\n");
+      } else {
+        document.getElementById("episode-modal-title").innerText = "회차 추가";
+        titleInput.value = "";
+        wordsInput.value = "";
+      }
+      document.getElementById("episode-modal").classList.remove("hidden");
+    }
+
+    function closeEpisodeModal() { document.getElementById("episode-modal").classList.add("hidden"); }
+
+    function saveEpisode() {
+      const title = document.getElementById("input-episode-title").value.trim();
+      const wordsText = document.getElementById("input-episode-words").value.trim();
+      if (!title) return alert("회차 타이틀을 입력해주세요.");
+      if (!wordsText) return alert("단어를 입력해주세요.");
+
+      const lines = wordsText.split("\n").map(l => l.trim()).filter(l => l.length > 0);
+      const parsedWords = lines.map(line => parseWordLine(line));
+
+      const series = appData.find(s => s.id === activeModalSeriesId);
+      if (activeModalEpId) {
+        const ep = series.episodes.find(e => e.id === activeModalEpId);
+        ep.title = title;
+        ep.words = parsedWords;
+      } else {
+        series.episodes.push({ id: "ep-" + Date.now(), title: title, words: parsedWords });
+      }
+
+      saveData();
+      renderSeriesList();
+      closeEpisodeModal();
+    }
+
+    function deleteEpisode(seriesId, epId) {
+      if (!confirm("해당 회차를 삭제하시겠습니까?")) return;
+      const series = appData.find(s => s.id === seriesId);
+      series.episodes = series.episodes.filter(e => e.id !== epId);
+      selectedEpisodeKeys.delete(`${seriesId}:${epId}`);
+      saveData();
+      renderSeriesList();
+    }
+
+    function startSelectedTest() {
+      if (selectedEpisodeKeys.size === 0) return;
+      let combinedWords = [];
+      selectedEpisodeKeys.forEach(key => {
+        const [sId, eId] = key.split(":");
+        const series = appData.find(s => s.id === sId);
+        if (series) {
+          const ep = series.episodes.find(e => e.id === eId);
+          if (ep) combinedWords = combinedWords.concat(ep.words);
+        }
+      });
+
+      if (combinedWords.length === 0) return alert("선택한 회차에 학습할 단어가 없습니다.");
+
+      sessionWrongCounts = {};
+      testQueue = shuffleArray([...combinedWords]);
+      nextRoundQueue = [];
+      currentCardIndex = 0;
+      currentRound = 1;
+
+      showSection('test');
+      saveActiveTestState(); // 백업 생성
+      renderCurrentCard();
+    }
+
+    function startWrongWordsTest() {
+      const wrongKeys = Object.keys(wrongWordStats).filter(key => wrongWordStats[key] > 0);
+      if (wrongKeys.length === 0) return alert("아직 오답 노트에 기록된 단어가 없습니다! 회독 시험을 진행해주세요.");
+
+      let wrongWordsList = [];
+      appData.forEach(s => {
+        s.episodes.forEach(e => {
+          e.words.forEach(w => {
+            if (wrongKeys.includes(w.word) && !wrongWordsList.some(item => item.word === w.word)) {
+              wrongWordsList.push(w);
+            }
+          });
+        });
+      });
+
+      sessionWrongCounts = {};
+      testQueue = shuffleArray([...wrongWordsList]);
+      nextRoundQueue = [];
+      currentCardIndex = 0;
+      currentRound = 1;
+
+      showSection('test');
+      saveActiveTestState(); // 백업 생성
+      renderCurrentCard();
+    }
+
+    function renderCurrentCard() {
+      if ('speechSynthesis' in window) window.speechSynthesis.cancel();
+
+      if (currentCardIndex >= testQueue.length) {
+        if (nextRoundQueue.length === 0) {
+          showSection('complete');
+          return;
+        } else {
+          testQueue = shuffleArray([...nextRoundQueue]);
+          nextRoundQueue = [];
+          currentCardIndex = 0;
+          currentRound++;
+        }
+      }
+
+      const item = testQueue[currentCardIndex];
+      isFuriganaShown = false;
+      isMeaningShown = false;
+
+      document.getElementById("card-word").innerText = item.word;
+      
+      const furiganaEl = document.getElementById("card-furigana");
+      furiganaEl.innerText = item.furigana || item.word;
+      furiganaEl.classList.add("opacity-0");
+
+      const meaningEl = document.getElementById("card-meaning");
+      meaningEl.innerText = item.meaning || "뜻 없음";
+      meaningEl.classList.add("opacity-0");
+
+      document.getElementById("hint-furigana-label").innerText = "클릭하여 발음 확인";
+      document.getElementById("hint-meaning-label").innerText = "클릭하여 한국어 뜻 확인";
+      document.getElementById("stt-status").innerText = "마이크 버튼을 누르고 일본어로 발음해보세요";
+
+      document.getElementById("test-remaining").innerText = testQueue.length - currentCardIndex;
+      document.getElementById("test-round").innerText = currentRound;
+
+      // 카드 전환 시점마다 상태 동기화 저장
+      saveActiveTestState();
+    }
+
+    function renderAnalytics() {
+      const container = document.getElementById("analytics-list");
+      container.innerHTML = "";
+      const sorted = Object.keys(wrongWordStats).sort((a, b) => wrongWordStats[b] - wrongWordStats[a]).slice(0, 5);
+
+      if (sorted.length === 0) {
+        container.innerHTML = `<p class="text-slate-400">이번 회독에서 오답이 발생하지 않았습니다!</p>`;
+        return;
+      }
+
+      sorted.forEach(word => {
+        const count = wrongWordStats[word];
+        const row = document.createElement("div");
+        row.className = "flex justify-between items-center py-1 px-2 bg-white rounded border border-slate-100";
+        row.innerHTML = `<span class="font-bold text-slate-700">${escapeHtml(word)}</span><span class="text-rose-500 font-bold bg-rose-50 px-2 py-0.5 rounded-full">누적 ${count}회 오답</span>`;
+        container.appendChild(row);
+      });
+    }
+
+    function toggleFurigana() {
+      isFuriganaShown = !isFuriganaShown;
+      const el = document.getElementById("card-furigana");
+      const label = document.getElementById("hint-furigana-label");
+      if (isFuriganaShown) { el.classList.remove("opacity-0"); label.innerText = "가리기"; }
+      else { el.classList.add("opacity-0"); label.innerText = "클릭하여 발음 확인"; }
+    }
+
+    function toggleMeaning() {
+      isMeaningShown = !isMeaningShown;
+      const el = document.getElementById("card-meaning");
+      const label = document.getElementById("hint-meaning-label");
+      if (isMeaningShown) { el.classList.remove("opacity-0"); label.innerText = "가리기"; }
+      else { el.classList.add("opacity-0"); label.innerText = "클릭하여 한국어 뜻 확인"; }
+    }
+
+    function markCorrect() {
+      currentCardIndex++;
+      renderCurrentCard();
+    }
+
+    function markIncorrect() {
+      const currentItem = testQueue[currentCardIndex];
+      if (currentItem) recordWrongWord(currentItem);
+
+      nextRoundQueue.push(currentItem);
+      currentCardIndex++;
+      renderCurrentCard();
+    }
+
+    function confirmExitTest() {
+      if (confirm("시험을 중단하고 목록으로 돌아가시겠습니까?")) {
+        showSection('list');
+      }
+    }
+
+    function playCurrentTTS() {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const text = testQueue[currentCardIndex]?.word;
+        if (!text) return;
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'ja-JP';
+        utter.rate = 0.9;
+        window.speechSynthesis.speak(utter);
+      }
+    }
+
+    document.addEventListener("keydown", (e) => {
+      if (document.getElementById("view-test").classList.contains("hidden")) return;
+      if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+
+      if (e.key === 'ArrowLeft') markIncorrect();
+      else if (e.key === 'ArrowRight') markCorrect();
+      else if (e.key.toLowerCase() === 'a') toggleFurigana();
+      else if (e.key.toLowerCase() === 's') toggleMeaning();
+      else if (e.key.toLowerCase() === 'd') toggleSpeechRecognition();
+      else if (e.code === 'Space') { e.preventDefault(); playCurrentTTS(); }
+    });
+
+    function shuffleArray(array) {
+      for (let i = array.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [array[i], array[j]] = [array[j], array[i]];
+      }
+      return array;
+    }
+
+    function escapeHtml(str) {
+      return str.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    window.onload = initData;
+  </script>
+</body>
+</html>
