@@ -23,11 +23,14 @@
         <h1 class="text-xl font-bold tracking-tight">일본어 단어 회독 서비스</h1>
       </div>
       
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-2 flex-wrap">
         <button onclick="startStarredWordsTest()" title="별표(즐겨찾기) 단어만 모아서 학습" class="bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold py-2 px-3 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
           <i class="fa-solid fa-star text-amber-300"></i> 즐겨찾기 회독
         </button>
-        <button onclick="startWrongWordsTest()" title="틀린 단어만 집중 학습" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2 px-3 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
+        <button onclick="openExtractModal()" title="별표된 단어를 지정 양식으로 추출" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2 px-3 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
+          <i class="fa-solid fa-file-export"></i> ⭐ 별표 단어 추출
+        </button>
+        <button onclick="startWrongWordsTest()" title="틀린 단어만 집중 학습" class="bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold py-2 px-3 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
           <i class="fa-solid fa-fire"></i> 오답 노트 시험
         </button>
         <button onclick="exportData()" title="데이터 파일 저장 (백업)" class="bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-semibold py-2 px-3 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
@@ -233,6 +236,28 @@
     </div>
   </div>
 
+  <!-- MODAL: STARRED WORDS EXTRACTOR -->
+  <div id="extract-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+          <i class="fa-solid fa-star text-amber-400"></i> 별표(즐겨찾기) 단어 추출
+        </h3>
+        <button onclick="closeExtractModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div>
+        <p class="text-xs text-slate-500 mb-2">모든 시리즈에서 별표 체크된 단어들이 요청하신 양식(<code class="bg-slate-100 px-1 rounded">단어:발음:뜻</code>)으로 추출되었습니다.</p>
+        <textarea id="extract-textarea" rows="10" readonly class="w-full p-3 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-mono leading-relaxed bg-slate-50"></textarea>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeExtractModal()" class="px-4 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-100 rounded-lg">닫기</button>
+        <button onclick="copyExtractedText()" class="px-4 py-2 text-xs font-semibold bg-amber-500 hover:bg-amber-600 text-white rounded-lg shadow-sm flex items-center gap-1.5">
+          <i class="fa-solid fa-copy"></i> 클립보드 복사
+        </button>
+      </div>
+    </div>
+  </div>
+
   <script>
     function parseWordLine(line) {
       const parts = line.split(":");
@@ -276,7 +301,7 @@
 
     let appData = [];
     let wrongWordStats = {};
-    let perfectStreaks = {}; // [추가] 회차별 연속 만점 횟수 추적 기록
+    let perfectStreaks = {}; 
     let selectedEpisodeKeys = new Set();
     let activeModalSeriesId = null;
     let activeModalEpId = null;
@@ -286,7 +311,7 @@
     let currentCardIndex = 0;
     let currentRound = 1;
     let sessionWrongCounts = {};
-    let activeTestedEpisodeKeys = []; // [추가] 현재 시험에서 선택된 회차 키 목록
+    let activeTestedEpisodeKeys = []; 
 
     let isFuriganaShown = false;
     let isMeaningShown = false;
@@ -297,7 +322,7 @@
     function initData() {
       const stored = localStorage.getItem("jp_word_app_v9");
       const storedStats = localStorage.getItem("jp_word_stats_v9");
-      const storedStreaks = localStorage.getItem("jp_word_streaks_v9"); // [추가]
+      const storedStreaks = localStorage.getItem("jp_word_streaks_v9"); 
 
       if (stored) {
         try { appData = JSON.parse(stored); } catch (e) { appData = initialSeries; }
@@ -322,7 +347,7 @@
     function saveData() {
       localStorage.setItem("jp_word_app_v9", JSON.stringify(appData));
       localStorage.setItem("jp_word_stats_v9", JSON.stringify(wrongWordStats));
-      localStorage.setItem("jp_word_streaks_v9", JSON.stringify(perfectStreaks)); // [추가]
+      localStorage.setItem("jp_word_streaks_v9", JSON.stringify(perfectStreaks)); 
     }
 
     function saveActiveTestState() {
@@ -528,11 +553,53 @@
       nextRoundQueue = [];
       currentCardIndex = 0;
       currentRound = 1;
-      activeTestedEpisodeKeys = []; // 개별 단어 모음 시험은 회차 마스터 대상에서 제외
+      activeTestedEpisodeKeys = []; 
 
       showSection('test');
       saveActiveTestState();
       renderCurrentCard();
+    }
+
+    // [추가] 별표 단어 추출 모달 열기 및 양식 생성 함수
+    function openExtractModal() {
+      let starredWordsList = [];
+      appData.forEach(s => {
+        s.episodes.forEach(e => {
+          e.words.forEach(w => {
+            if (w.starred && !starredWordsList.some(item => item.word === w.word)) {
+              starredWordsList.push(w);
+            }
+          });
+        });
+      });
+
+      if (starredWordsList.length === 0) {
+        return alert("추출할 별표(즐겨찾기) 단어가 없습니다!");
+      }
+
+      // 요청하신 형식 (단어:발음:뜻)으로 변환
+      const formattedLines = starredWordsList.map(w => `${w.word}:${w.furigana || w.word}:${w.meaning}`).join("\n");
+      
+      document.getElementById("extract-textarea").value = formattedLines;
+      document.getElementById("extract-modal").classList.remove("hidden");
+    }
+
+    function closeExtractModal() {
+      document.getElementById("extract-modal").classList.add("hidden");
+    }
+
+    function copyExtractedText() {
+      const textarea = document.getElementById("extract-textarea");
+      textarea.select();
+      textarea.setSelectionRange(0, 99999); // 모바일 대응
+      try {
+        navigator.clipboard.writeText(textarea.value).then(() => {
+          alert("클립보드에 복사되었습니다!");
+        });
+      } catch (err) {
+        document.execCommand('copy');
+        alert("클립보드에 복사되었습니다!");
+      }
     }
 
     function exportData() {
@@ -647,7 +714,6 @@
             const key = `${series.id}:${ep.id}`;
             const isChecked = selectedEpisodeKeys.has(key) ? "checked" : "";
             
-            // [추가] 3번 연속 만점 달성 여부 확인하여 MASTER 배지 렌더링
             const streakCount = perfectStreaks[key] || 0;
             const isMaster = streakCount >= 3;
             const masterBadgeHtml = isMaster 
@@ -836,7 +902,7 @@
     function startSelectedTest() {
       if (selectedEpisodeKeys.size === 0) return;
       let combinedWords = [];
-      activeTestedEpisodeKeys = Array.from(selectedEpisodeKeys); // [추가] 선택된 회차 키 백업
+      activeTestedEpisodeKeys = Array.from(selectedEpisodeKeys); 
 
       selectedEpisodeKeys.forEach(key => {
         const [sId, eId] = key.split(":");
@@ -880,7 +946,7 @@
       nextRoundQueue = [];
       currentCardIndex = 0;
       currentRound = 1;
-      activeTestedEpisodeKeys = []; // 오답노트 시험은 회차 마스터 대상에서 제외
+      activeTestedEpisodeKeys = []; 
 
       showSection('test');
       saveActiveTestState();
@@ -892,7 +958,6 @@
 
       if (currentCardIndex >= testQueue.length) {
         if (nextRoundQueue.length === 0) {
-          // [추가] 시험 완료 시점: 이번 시험에서 오답이 하나도 없었다면(만점), 선택된 모든 회차의 연속 만점 카운트 증가 처리
           handleTestCompletion();
           showSection('complete');
           return;
@@ -930,7 +995,6 @@
       saveActiveTestState();
     }
 
-    // [추가] 만점 여부 확인 및 3회 연속 달성 처리 로직
     function handleTestCompletion() {
       const isPerfectScore = Object.keys(sessionWrongCounts).length === 0;
       const masterMsgEl = document.getElementById("complete-master-msg");
