@@ -6,6 +6,12 @@
   <title>일본어 단어 회독 및 간격 반복 서비스</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  
+  <!-- Firebase SDK CDN -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
   <style>
     @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
     body {
@@ -35,6 +41,19 @@
       </div>
       
       <div class="flex items-center gap-2 flex-wrap">
+        <!-- Firebase Auth UI Section -->
+        <div id="auth-container" class="flex items-center gap-2 mr-2 border-r border-indigo-500 pr-3">
+          <button id="login-btn" onclick="loginWithGoogle()" class="bg-white text-indigo-700 hover:bg-slate-100 text-xs font-bold py-2 px-3 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
+            <i class="fa-brands fa-google text-rose-500"></i> 구글 로그인
+          </button>
+          <div id="user-info" class="hidden items-center gap-2">
+            <span id="user-name-display" class="text-xs font-semibold text-indigo-100"></span>
+            <button onclick="logout()" class="bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-bold py-1.5 px-2.5 rounded-lg transition-all shadow-sm">
+              로그아웃
+            </button>
+          </div>
+        </div>
+
         <button onclick="startStarredWordsTest()" title="별표(즐겨찾기) 단어만 모아서 학습" class="bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold py-2 px-3 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
           <i class="fa-solid fa-star text-amber-300"></i> 즐겨찾기 회독
         </button>
@@ -67,7 +86,7 @@
     <!-- 1. SERIES LIST & TEST SELECTOR VIEW -->
     <div id="view-list" class="space-y-6">
       
-      <!-- GitHub 스타일 잔디밭 파트 (중앙 정렬 보정 완료) -->
+      <!-- GitHub 스타일 잔디밭 파트 -->
       <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
         <div class="flex flex-wrap justify-between items-center gap-2">
           <div class="flex items-center gap-2">
@@ -85,11 +104,9 @@
           </div>
         </div>
 
-        <!-- 잔디밭 컨테이너 (중앙 정렬 justify-center 적용) -->
+        <!-- 잔디밭 컨테이너 (중앙 정렬) -->
         <div class="overflow-x-auto pb-1 pt-2 flex justify-center">
-          <div id="heatmap-grid" class="github-grid gap-1 min-w-max">
-            <!-- Dynamic Github Cells -->
-          </div>
+          <div id="heatmap-grid" class="github-grid gap-1 min-w-max"></div>
         </div>
 
         <!-- 범례 (Legend) -->
@@ -329,6 +346,107 @@
   </div>
 
   <script>
+    // --- Firebase 초기화 및 설정 ---
+    const firebaseConfig = {
+      apiKey: "AIzaSyCQrPd0cc_VBJb16Jud-a_glGyXtkHcOL8",
+      authDomain: "studywithmanga-8903a.firebaseapp.com",
+      projectId: "studywithmanga-8903a",
+      storageBucket: "studywithmanga-8903a.firebasestorage.app",
+      messagingSenderId: "745441266459",
+      appId: "1:745441266459:web:d7a48438bef09774a821be",
+      measurementId: "G-BPCV2YL232"
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    let currentUser = null;
+    let isCloudLoading = false;
+
+    // --- Google 로그인 / 로그아웃 함수 ---
+    function loginWithGoogle() {
+      const provider = new firebase.auth.GoogleAuthProvider();
+      auth.signInWithPopup(provider).catch(error => {
+        alert("로그인 실패: " + error.message);
+      });
+    }
+
+    function logout() {
+      auth.signOut().then(() => {
+        alert("로그아웃 되었습니다.");
+      });
+    }
+
+    // --- 로그인 상태 감지 및 클라우드 동기화 리스너 ---
+    auth.onAuthStateChanged(user => {
+      currentUser = user;
+      const loginBtn = document.getElementById("login-btn");
+      const userInfo = document.getElementById("user-info");
+      const userNameDisplay = document.getElementById("user-name-display");
+
+      if (user) {
+        loginBtn.classList.add("hidden");
+        userInfo.classList.remove("hidden");
+        userInfo.classList.add("flex");
+        userNameDisplay.innerText = `${user.displayName || user.email}님`;
+        
+        // 클라우드 데이터 동기화 로드
+        loadCloudData(user.uid);
+      } else {
+        loginBtn.classList.remove("hidden");
+        userInfo.classList.add("hidden");
+        userInfo.classList.remove("flex");
+        
+        // 로그아웃 시 로컬 데이터 기준으로 초기화
+        initData();
+      }
+    });
+
+    // --- Firestore 클라우드 데이터 불러오기 ---
+    function loadCloudData(uid) {
+      isCloudLoading = true;
+      db.collection("users").doc(uid).get().then(doc => {
+        if (doc.exists) {
+          const data = doc.data();
+          appData = data.appData || initialSeries;
+          wrongWordStats = data.wrongWordStats || {};
+          perfectStreaks = data.perfectStreaks || {};
+          episodeLastDates = data.episodeLastDates || {};
+          studyHistory = data.studyHistory || {};
+
+          // 로컬 스토리지도 동기화 후 화면 갱신
+          saveDataLocalOnly();
+          renderHeatmap();
+          renderSeriesList();
+        } else {
+          // 첫 로그인 시 현재 로컬 데이터를 클라우드에 최초 저장
+          saveCloudData();
+        }
+        isCloudLoading = false;
+      }).catch(err => {
+        console.error("클라우드 데이터 로드 실패:", err);
+        isCloudLoading = false;
+        initData();
+      });
+    }
+
+    // --- Firestore 클라우드 데이터 저장하기 ---
+    function saveCloudData() {
+      if (!currentUser || isCloudLoading) return;
+      db.collection("users").doc(currentUser.uid).set({
+        appData,
+        wrongWordStats,
+        perfectStreaks,
+        episodeLastDates,
+        studyHistory,
+        lastUpdated: new Date().toISOString()
+      }).catch(err => {
+        console.error("클라우드 저장 실패:", err);
+      });
+    }
+
+
     function parseWordLine(line) {
       if (!line) return null;
       const parts = line.split(":");
@@ -395,11 +513,11 @@
     let currentHeatmapView = 'year';
 
     function initData() {
-      const stored = localStorage.getItem("jp_word_app_v11");
-      const storedStats = localStorage.getItem("jp_word_stats_v11");
-      const storedStreaks = localStorage.getItem("jp_word_streaks_v11"); 
-      const storedDates = localStorage.getItem("jp_word_dates_v11"); 
-      const storedHistory = localStorage.getItem("jp_word_history_v11");
+      const stored = localStorage.getItem("jp_word_app_v12");
+      const storedStats = localStorage.getItem("jp_word_stats_v12");
+      const storedStreaks = localStorage.getItem("jp_word_streaks_v12"); 
+      const storedDates = localStorage.getItem("jp_word_dates_v12"); 
+      const storedHistory = localStorage.getItem("jp_word_history_v12");
 
       appData = stored ? safeJSONParse(stored, initialSeries) : initialSeries;
       wrongWordStats = storedStats ? safeJSONParse(storedStats, {}) : {};
@@ -416,12 +534,19 @@
       try { return JSON.parse(str); } catch (e) { return fallback; }
     }
 
+    // 로컬 스토리지에만 저장
+    function saveDataLocalOnly() {
+      localStorage.setItem("jp_word_app_v12", JSON.stringify(appData));
+      localStorage.setItem("jp_word_stats_v12", JSON.stringify(wrongWordStats));
+      localStorage.setItem("jp_word_streaks_v12", JSON.stringify(perfectStreaks)); 
+      localStorage.setItem("jp_word_dates_v12", JSON.stringify(episodeLastDates)); 
+      localStorage.setItem("jp_word_history_v12", JSON.stringify(studyHistory));
+    }
+
+    // 통합 저장 (로컬 + 파이어베이스 클라우드 동기화)
     function saveData() {
-      localStorage.setItem("jp_word_app_v11", JSON.stringify(appData));
-      localStorage.setItem("jp_word_stats_v11", JSON.stringify(wrongWordStats));
-      localStorage.setItem("jp_word_streaks_v11", JSON.stringify(perfectStreaks)); 
-      localStorage.setItem("jp_word_dates_v11", JSON.stringify(episodeLastDates)); 
-      localStorage.setItem("jp_word_history_v11", JSON.stringify(studyHistory));
+      saveDataLocalOnly();
+      saveCloudData();
     }
 
     function setHeatmapView(viewMode) {
@@ -488,13 +613,13 @@
         const count = studyHistory[dateStr] || 0;
 
         let bgClass = "bg-slate-100 border-slate-200";
-        if (count > 0 && count <= 5) bgClass = "bg-emerald-200 border-emerald-300 text-emerald-900";
-        else if (count > 5 && count <= 15) bgClass = "bg-emerald-400 border-emerald-500 text-white";
-        else if (count > 15) bgClass = "bg-emerald-600 border-emerald-700 text-white font-bold";
+        if (count === 1) bgClass = "bg-emerald-200 border-emerald-300 text-emerald-900";
+        else if (count >= 2 && count <= 3) bgClass = "bg-emerald-400 border-emerald-500 text-white";
+        else if (count >= 4) bgClass = "bg-emerald-600 border-emerald-700 text-white font-bold";
 
         const cell = document.createElement("div");
         cell.className = `${tileWidthClass} rounded-sm border flex items-center justify-center transition-all cursor-default ${bgClass}`;
-        cell.title = `${dateStr}: ${count}개 회독 완료`;
+        cell.title = `${dateStr}: ${count}회독 완료`;
 
         if (currentHeatmapView !== 'year') {
           cell.innerText = d.getDate();
@@ -504,14 +629,14 @@
       }
     }
 
-    function recordStudyActivity(count = 1) {
+    function recordStudyActivity() {
       const now = new Date();
       const year = now.getFullYear();
       const month = String(now.getMonth() + 1).padStart(2, '0');
       const day = String(now.getDate()).padStart(2, '0');
       const todayStr = `${year}-${month}-${day}`;
 
-      studyHistory[todayStr] = (studyHistory[todayStr] || 0) + count;
+      studyHistory[todayStr] = (studyHistory[todayStr] || 0) + 1;
       saveData();
       renderHeatmap();
     }
@@ -1192,7 +1317,7 @@
       const isPerfectScore = Object.keys(sessionWrongCounts).length === 0;
       const masterMsgEl = document.getElementById("complete-master-msg");
 
-      recordStudyActivity(testQueue.length);
+      recordStudyActivity(); 
 
       if (activeTestedEpisodeKeys.length > 0) {
         activeTestedEpisodeKeys.forEach(epKey => {
