@@ -265,7 +265,7 @@
       <h3 id="series-modal-title" class="text-lg font-bold text-slate-800">새 시리즈 추가</h3>
       <div>
         <label class="block text-xs font-semibold text-slate-600 mb-1">시리즈 제목</label>
-        <input type="text" id="input-series-title" placeholder="예: きみが死ぬまで恋をしたい" class="w-full px-3.5 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+        <input type="text" id="input-series-title" placeholder="예: きみが死ぬまで恋를하고싶어" class="w-full px-3.5 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
       </div>
       <div>
         <label class="block text-xs font-semibold text-slate-600 mb-1">표지 이미지 업로드 (JPG, PNG, WEBP)</label>
@@ -378,7 +378,7 @@
       });
     }
 
-    // --- 로그인 상태 감지 및 클라우드 동기화 리스너 ---
+    // --- 로그인 상태 감지 리스너 ---
     auth.onAuthStateChanged(user => {
       currentUser = user;
       const loginBtn = document.getElementById("login-btn");
@@ -391,43 +391,46 @@
         userInfo.classList.add("flex");
         userNameDisplay.innerText = `${user.displayName || user.email}님`;
         
-        // 클라우드 데이터 동기화 로드
+        // 로그인 성공 시 클라우드 데이터 로드
         loadCloudData(user.uid);
       } else {
         loginBtn.classList.remove("hidden");
         userInfo.classList.add("hidden");
         userInfo.classList.remove("flex");
         
-        // 로그아웃 시 로컬 데이터 기준으로 초기화
-        initData();
+        // 로그아웃 시 로컬 데이터만 로드
+        initDataLocal();
       }
     });
 
-    // --- Firestore 클라우드 데이터 불러오기 ---
+    // --- Firestore 클라우드 데이터 불러오기 (개선됨) ---
     function loadCloudData(uid) {
       isCloudLoading = true;
       db.collection("users").doc(uid).get().then(doc => {
         if (doc.exists) {
           const data = doc.data();
+          // 클라우드에 데이터가 있으면 클라우드 기준으로 덮어쓰기
           appData = data.appData || initialSeries;
           wrongWordStats = data.wrongWordStats || {};
           perfectStreaks = data.perfectStreaks || {};
           episodeLastDates = data.episodeLastDates || {};
           studyHistory = data.studyHistory || {};
 
-          // 로컬 스토리지도 동기화 후 화면 갱신
           saveDataLocalOnly();
           renderHeatmap();
           renderSeriesList();
+          console.log("클라우드 데이터 불러오기 성공!");
         } else {
-          // 첫 로그인 시 현재 로컬 데이터를 클라우드에 최초 저장
+          // 클라우드가 텅 비어있다면(첫 로그인), 현재 로컬에 있던 데이터를 클라우드로 즉시 업로드
+          console.log("클라우드 데이터가 없어 현재 로컬 데이터를 업로드합니다.");
+          initDataLocal();
           saveCloudData();
         }
         isCloudLoading = false;
       }).catch(err => {
         console.error("클라우드 데이터 로드 실패:", err);
         isCloudLoading = false;
-        initData();
+        initDataLocal();
       });
     }
 
@@ -441,6 +444,8 @@
         episodeLastDates,
         studyHistory,
         lastUpdated: new Date().toISOString()
+      }).then(() => {
+        console.log("클라우드 자동 저장 완료!");
       }).catch(err => {
         console.error("클라우드 저장 실패:", err);
       });
@@ -464,7 +469,7 @@
     const initialSeries = [
       {
         id: "series-sample-1",
-        title: "きみが死ぬまで恋をしたい",
+        title: "きみが死ぬまで恋를하고싶어",
         cover: null,
         episodes: [
           {
@@ -512,7 +517,7 @@
 
     let currentHeatmapView = 'year';
 
-    function initData() {
+    function initDataLocal() {
       const stored = localStorage.getItem("jp_word_app_v12");
       const storedStats = localStorage.getItem("jp_word_stats_v12");
       const storedStreaks = localStorage.getItem("jp_word_streaks_v12"); 
@@ -530,11 +535,17 @@
       checkAndRestoreActiveTest();
     }
 
+    function initData() {
+      //초기 구동 시 로그인 상태라면 authStateChanged에서 loadCloudData를 타므로 대기
+      if (!auth.currentUser) {
+        initDataLocal();
+      }
+    }
+
     function safeJSONParse(str, fallback) {
       try { return JSON.parse(str); } catch (e) { return fallback; }
     }
 
-    // 로컬 스토리지에만 저장
     function saveDataLocalOnly() {
       localStorage.setItem("jp_word_app_v12", JSON.stringify(appData));
       localStorage.setItem("jp_word_stats_v12", JSON.stringify(wrongWordStats));
@@ -543,7 +554,6 @@
       localStorage.setItem("jp_word_history_v12", JSON.stringify(studyHistory));
     }
 
-    // 통합 저장 (로컬 + 파이어베이스 클라우드 동기화)
     function saveData() {
       saveDataLocalOnly();
       saveCloudData();
@@ -600,7 +610,7 @@
       else if (currentHeatmapView === 'week') tileWidthClass = "w-10 h-10 text-xs";
 
       const startDate = new Date(today);
-      startDate.setDate(today.getDate() - totalDays);
+      startDate.setDate(startDate.getDate() - totalDays);
 
       for (let i = 0; i <= totalDays; i++) {
         const d = new Date(startDate);
