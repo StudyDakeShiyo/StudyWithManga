@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>일본어 단어 회독 및 간격 반복 서비스</title>
+  <title>StudyWithManga - 일본어 단어 회독</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
   
@@ -17,12 +17,16 @@
     body {
       font-family: 'Pretendard', -apple-system, BlinkMacSystemFont, system-ui, Roboto, sans-serif;
     }
+    
+    #print-area { display: none; }
+    
     @media print {
-      body * { visibility: hidden; }
-      #print-area, #print-area * { visibility: visible; }
-      #print-area { position: absolute; left: 0; top: 0; width: 100%; }
+      body * { visibility: hidden !important; }
+      #print-area, #print-area * { visibility: visible !important; }
+      #print-area { display: block !important; position: absolute; left: 0; top: 0; width: 100%; background: white; z-index: 9999; }
       .no-print { display: none !important; }
     }
+    
     .github-grid {
       display: grid;
       grid-template-rows: repeat(7, minmax(0, 1fr));
@@ -32,48 +36,50 @@
 </head>
 <body class="bg-slate-100 min-h-screen text-slate-800 antialiased flex flex-col">
 
-  <!-- Header -->
+  <!-- Header (버튼 명칭 및 톤앤매너 통일) -->
   <header class="bg-indigo-600 text-white shadow-md sticky top-0 z-30 no-print">
-    <div class="max-w-5xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-2">
-      <div class="flex items-center gap-3 cursor-pointer" onclick="showSection('list')">
-        <i class="fa-solid fa-book-bookmark text-2xl text-amber-300"></i>
-        <h1 class="text-xl font-bold tracking-tight">일본어 단어 회독 서비스</h1>
+    <div class="max-w-7xl mx-auto px-4 py-2.5 flex justify-between items-center gap-2">
+      <div class="flex items-center gap-2 cursor-pointer shrink-0" onclick="showSection('list')">
+        <i class="fa-solid fa-book-bookmark text-xl text-amber-300"></i>
+        <h1 class="text-base font-bold tracking-tight">StudyWithManga</h1>
       </div>
       
-      <div class="flex items-center gap-2 flex-wrap">
-        <!-- Firebase Auth UI Section -->
-        <div id="auth-container" class="flex items-center gap-2 mr-2 border-r border-indigo-500 pr-3">
-          <button id="login-btn" onclick="loginWithGoogle()" class="bg-white text-indigo-700 hover:bg-slate-100 text-xs font-bold py-2 px-3 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
-            <i class="fa-brands fa-google text-rose-500"></i> 구글 로그인
+      <div class="flex items-center gap-1.5 flex-nowrap overflow-x-auto py-1">
+        <div id="auth-container" class="flex items-center gap-1.5 border-r border-indigo-500 pr-2 shrink-0">
+          <button id="login-btn" onclick="loginWithGoogle()" class="bg-white text-indigo-700 hover:bg-slate-100 text-[11px] font-bold py-1.5 px-2.5 rounded-md transition-all flex items-center gap-1 shadow-sm">
+            <i class="fa-brands fa-google text-rose-500"></i> 로그인
           </button>
-          <div id="user-info" class="hidden items-center gap-2">
-            <span id="user-name-display" class="text-xs font-semibold text-indigo-100"></span>
-            <button onclick="logout()" class="bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-bold py-1.5 px-2.5 rounded-lg transition-all shadow-sm">
+          <div id="user-info" class="hidden items-center gap-1.5">
+            <span id="user-name-display" class="text-[11px] font-semibold text-indigo-100 truncate max-w-[80px]"></span>
+            <button onclick="logout()" class="bg-indigo-700 hover:bg-indigo-800 text-white text-[10px] font-bold py-1 px-2 rounded transition-all">
               로그아웃
             </button>
           </div>
         </div>
 
-        <button onclick="startStarredWordsTest()" title="별표(즐겨찾기) 단어만 모아서 학습" class="bg-indigo-500 hover:bg-indigo-600 text-white text-xs font-bold py-2 px-3 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
+        <button onclick="manualSyncCloudData()" title="클라우드 강제 동기화" class="bg-emerald-600 hover:bg-emerald-700 text-white text-[11px] font-bold py-1.5 px-2.5 rounded-md transition-all flex items-center gap-1 shadow-sm shrink-0">
+          <i class="fa-solid fa-cloud-arrow-up"></i> 동기화
+        </button>
+        <button onclick="startStarredWordsTest()" title="즐겨찾기 회독" class="bg-indigo-500 hover:bg-indigo-600 text-white text-[11px] font-bold py-1.5 px-2.5 rounded-md transition-all flex items-center gap-1 shadow-sm shrink-0">
           <i class="fa-solid fa-star text-amber-300"></i> 즐겨찾기 회독
         </button>
-        <button onclick="openExtractModal()" title="별표된 단어를 지정 양식으로 추출" class="bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold py-2 px-3 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
-          <i class="fa-solid fa-file-export"></i> ⭐ 별표 추출
+        <button onclick="openExtractModal()" title="즐겨찾기 추출" class="bg-amber-500 hover:bg-amber-600 text-white text-[11px] font-bold py-1.5 px-2.5 rounded-md transition-all flex items-center gap-1 shadow-sm shrink-0">
+          <i class="fa-solid fa-file-export"></i> 즐겨찾기 추출
         </button>
-        <button onclick="resetAllStarredWords()" title="모든 별표(즐겨찾기) 초기화" class="bg-rose-500 hover:bg-rose-600 text-white text-xs font-bold py-2 px-3 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
-          <i class="fa-solid fa-rotate-right"></i> ⭐ 초기화
+        <button onclick="resetAllStarredWords()" title="즐겨찾기 초기화" class="bg-rose-500 hover:bg-rose-600 text-white text-[11px] font-bold py-1.5 px-2.5 rounded-md transition-all flex items-center gap-1 shadow-sm shrink-0">
+          <i class="fa-solid fa-rotate-right"></i> 즐겨찾기 초기화
         </button>
-        <button onclick="startWrongWordsTest()" title="틀린 단어만 집중 학습" class="bg-rose-700 hover:bg-rose-800 text-white text-xs font-bold py-2 px-3 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
-          <i class="fa-solid fa-fire"></i> 오답 노트 시험
+        <button onclick="startWrongWordsTest()" title="오답 회독" class="bg-rose-700 hover:bg-rose-800 text-white text-[11px] font-bold py-1.5 px-2.5 rounded-md transition-all flex items-center gap-1 shadow-sm shrink-0">
+          <i class="fa-solid fa-fire"></i> 오답 회독
         </button>
-        <button onclick="exportData()" title="데이터 파일 저장 (백업)" class="bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-semibold py-2 px-3 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
-          <i class="fa-solid fa-download"></i> 내보내기
+        <button onclick="exportData()" title="백업" class="bg-indigo-700 hover:bg-indigo-800 text-white text-[11px] font-semibold py-1.5 px-2 rounded-md transition-all flex items-center gap-1 shadow-sm shrink-0">
+          <i class="fa-solid fa-download"></i> 백업
         </button>
-        <label title="데이터 파일 불러오기 (복원)" class="bg-indigo-700 hover:bg-indigo-800 text-white text-xs font-semibold py-2 px-3 rounded-lg transition-all flex items-center gap-1.5 shadow-sm cursor-pointer">
-          <i class="fa-solid fa-upload"></i> 가져오기
+        <label title="복원" class="bg-indigo-700 hover:bg-indigo-800 text-white text-[11px] font-semibold py-1.5 px-2 rounded-md transition-all flex items-center gap-1 shadow-sm cursor-pointer shrink-0">
+          <i class="fa-solid fa-upload"></i> 복원
           <input type="file" id="import-file" accept=".json" onchange="importData(event)" class="hidden">
         </label>
-        <button onclick="openSeriesModal()" class="bg-indigo-500 hover:bg-indigo-400 text-white text-xs sm:text-sm font-semibold py-2 px-3.5 rounded-lg transition-all flex items-center gap-1.5 shadow-sm">
+        <button onclick="openSeriesModal()" class="bg-indigo-500 hover:bg-indigo-400 text-white text-[11px] font-semibold py-1.5 px-2.5 rounded-md transition-all flex items-center gap-1 shadow-sm shrink-0">
           <i class="fa-solid fa-plus"></i> 새 시리즈
         </button>
       </div>
@@ -86,7 +92,7 @@
     <!-- 1. SERIES LIST & TEST SELECTOR VIEW -->
     <div id="view-list" class="space-y-6">
       
-      <!-- GitHub 스타일 잔디밭 파트 -->
+      <!-- 학습 잔디밭 -->
       <div class="bg-white p-5 rounded-xl shadow-sm border border-slate-200 space-y-3">
         <div class="flex flex-wrap justify-between items-center gap-2">
           <div class="flex items-center gap-2">
@@ -95,21 +101,12 @@
             </h3>
             <span id="streak-info-text" class="text-xs font-semibold text-indigo-600 bg-indigo-50 px-2.5 py-0.5 rounded-full border border-indigo-100">연속 학습: 0일째 🔥</span>
           </div>
-
-          <!-- 연간 / 월간 / 주간 뷰 전환 탭 -->
-          <div class="flex bg-slate-100 p-0.5 rounded-lg text-xs font-semibold">
-            <button onclick="setHeatmapView('year')" id="btn-view-year" class="px-2.5 py-1 rounded-md bg-white text-indigo-600 shadow-sm transition-all">연간</button>
-            <button onclick="setHeatmapView('month')" id="btn-view-month" class="px-2.5 py-1 rounded-md text-slate-500 hover:text-slate-800 transition-all">월간</button>
-            <button onclick="setHeatmapView('week')" id="btn-view-week" class="px-2.5 py-1 rounded-md text-slate-500 hover:text-slate-800 transition-all">주간</button>
-          </div>
         </div>
 
-        <!-- 잔디밭 컨테이너 (중앙 정렬) -->
         <div class="overflow-x-auto pb-1 pt-2 flex justify-center">
           <div id="heatmap-grid" class="github-grid gap-1 min-w-max"></div>
         </div>
 
-        <!-- 범례 (Legend) -->
         <div class="flex justify-end items-center gap-1.5 text-[11px] text-slate-400">
           <span>적음</span>
           <span class="w-2.5 h-2.5 rounded-sm bg-slate-100 border border-slate-200"></span>
@@ -127,10 +124,18 @@
           <p class="text-xs text-slate-500 mt-0.5">회차 선택 후 시험을 보거나, 다양한 시험 모드로 회독을 진행하세요.</p>
         </div>
         <div class="flex items-center gap-2 flex-wrap">
-          <label class="flex items-center gap-1.5 bg-slate-100 hover:bg-slate-200 px-3 py-2 rounded-xl text-xs font-bold text-slate-700 cursor-pointer transition-colors">
-            <input type="checkbox" id="speed-mode-toggle" class="w-4 h-4 text-indigo-600 rounded">
-            <span>⚡ 스피드 모드 (5초)</span>
-          </label>
+          
+          <div class="flex items-center gap-1.5 bg-slate-100 px-3 py-1.5 rounded-xl text-xs font-bold text-slate-700 border border-slate-200">
+            <select id="timer-mode-select" onchange="onTimerModeChange()" class="bg-transparent focus:outline-none cursor-pointer">
+              <option value="none">⏱️ 타이머 없음</option>
+              <option value="speed">⚡ 스피드 모드 (5초)</option>
+              <option value="custom">⚙️ 커스텀 시간 설정</option>
+            </select>
+            <div id="custom-timer-input-wrapper" class="hidden items-center gap-1">
+              <input type="number" id="custom-timer-sec" min="3" max="30" value="5" class="w-12 text-center bg-white border border-slate-300 rounded px-1 py-0.5 text-xs font-mono">
+              <span class="text-[11px] text-slate-500">초</span>
+            </div>
+          </div>
           
           <button onclick="startRandomMockExam()" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2.5 px-4 rounded-xl transition-all shadow-sm text-xs flex items-center gap-1.5">
             <i class="fa-solid fa-shuffle"></i> 무작위 종합 모의고사
@@ -158,7 +163,7 @@
             남은 단어: <span id="test-remaining" class="text-indigo-600 text-base">0</span>개 / 라운드 <span id="test-round">1</span>
           </div>
         </div>
-        <div class="text-xs text-slate-400 font-mono hidden sm:block">단축키 (← → A S Space)</div>
+        <div class="text-xs text-slate-400 font-mono hidden sm:block">단축키 (← → A S D F Space)</div>
       </div>
 
       <div class="flex-1 flex flex-col min-h-[440px]">
@@ -182,8 +187,9 @@
             </button>
           </div>
 
+          <!-- 카드 중앙부 -->
           <div class="flex-1 flex flex-col items-center justify-center p-6 bg-slate-50/50 select-none relative">
-            <button onclick="toggleCurrentWordStar()" id="card-star-btn" class="absolute top-4 right-4 text-2xl text-slate-300 hover:text-amber-400 transition-colors p-2 z-10" title="이 단어 즐겨찾기">
+            <button onclick="toggleCurrentWordStar()" id="card-star-btn" class="absolute top-4 right-4 text-2xl text-slate-300 hover:text-amber-400 transition-colors p-2 z-10" title="이 단어 즐겨찾기 (F)">
               <i id="card-star-icon" class="fa-regular fa-star"></i>
             </button>
 
@@ -191,13 +197,28 @@
               -
             </div>
 
-            <div id="card-note-box" class="mt-3 text-xs text-slate-500 italic bg-amber-50 border border-amber-200 px-3 py-1.5 rounded-lg max-w-sm text-center hidden"></div>
-
-            <div class="mt-4 flex flex-wrap items-center justify-center gap-2">
-              <button onclick="playCurrentTTS()" class="text-xs font-semibold text-slate-600 hover:text-indigo-600 transition-colors flex items-center gap-1.5 bg-white px-3 py-1.5 rounded-full shadow-sm border border-slate-200">
-                <i class="fa-solid fa-volume-high text-indigo-500"></i> 음성 듣기 (Space)
-              </button>
+            <!-- 인체공학적 2줄 버튼 그룹 -->
+            <div class="mt-6 flex flex-col items-center gap-2 w-full max-w-sm">
+              <!-- 1행 버튼 -->
+              <div class="flex items-center justify-center gap-2 w-full">
+                <button onclick="playCurrentTTS()" class="flex-1 text-xs font-semibold text-slate-700 hover:text-indigo-600 transition-colors flex items-center justify-center gap-1.5 bg-white px-3 py-2 rounded-xl shadow-sm border border-slate-200">
+                  <i class="fa-solid fa-volume-high text-indigo-500"></i> 음성 듣기 (Space)
+                </button>
+                <button onclick="openDetailSearch()" class="flex-1 text-xs font-semibold text-indigo-600 hover:text-indigo-700 transition-colors flex items-center justify-center gap-1.5 bg-indigo-50 px-3 py-2 rounded-xl shadow-sm border border-indigo-100">
+                  <i class="fa-solid fa-magnifying-glass"></i> 사전 검색 (새탭)
+                </button>
+              </div>
+              <!-- 2행 버튼 -->
+              <div class="flex items-center justify-center gap-2 w-full">
+                <button onclick="openAddExampleModal()" class="flex-1 text-xs font-semibold text-emerald-700 hover:text-emerald-800 transition-colors flex items-center justify-center gap-1.5 bg-emerald-50 px-3 py-2 rounded-xl shadow-sm border border-emerald-100">
+                  <i class="fa-solid fa-plus-circle"></i> 예문 추가
+                </button>
+                <button onclick="openExampleListModal()" class="flex-1 text-xs font-semibold text-amber-700 hover:text-amber-800 transition-colors flex items-center justify-center gap-1.5 bg-amber-50 px-3 py-2 rounded-xl shadow-sm border border-amber-100">
+                  <i class="fa-solid fa-list"></i> 예문 목록
+                </button>
+              </div>
             </div>
+
           </div>
 
           <div class="grid grid-cols-2 border-t border-slate-200 h-20">
@@ -235,7 +256,7 @@
 
         <div class="flex gap-2">
           <button onclick="startWrongWordsTest()" class="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-sm text-xs sm:text-sm">
-            오답 노트 집중 회독
+            오답 회독
           </button>
           <button onclick="showSection('list')" class="flex-1 bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-3 px-4 rounded-xl transition-all shadow-sm text-xs sm:text-sm">
             목록으로 돌아가기
@@ -247,16 +268,17 @@
   </main>
 
   <!-- PRINT EXAM VIEW -->
-  <div id="print-area" class="hidden p-8 bg-white min-h-screen text-slate-900">
-    <div class="text-center border-b-2 border-slate-800 pb-4 mb-6">
-      <h1 id="print-title" class="text-2xl font-bold tracking-tight">일본어 단어 회독 시험지</h1>
-      <div class="flex justify-between items-center text-xs text-slate-500 mt-2">
-        <span>성명: ____________________</span>
-        <span>점수: ________ / 100</span>
-        <span id="print-date-label">일자: 2026-11-05</span>
+  <div id="print-area">
+    <div class="p-8 bg-white min-h-screen text-slate-900">
+      <div class="text-center border-b-2 border-slate-800 pb-3 mb-4">
+        <h1 id="print-title" class="text-xl font-bold tracking-tight">StudyWithManga - 단어 따라쓰기 학습지</h1>
+        <div class="flex justify-between items-center text-xs text-slate-500 mt-1">
+          <span>성명: ____________________</span>
+          <span id="print-date-label">일자: 2026-11-06</span>
+        </div>
       </div>
+      <div id="print-word-grid" class="grid grid-cols-1 gap-y-2 text-sm"></div>
     </div>
-    <div id="print-word-grid" class="grid grid-cols-2 gap-x-8 gap-y-4 text-sm"></div>
   </div>
 
   <!-- MODALS -->
@@ -297,16 +319,48 @@
     </div>
   </div>
 
+  <!-- 예문 직접 추가 모달 -->
+  <div id="add-example-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 no-print">
+    <div class="bg-white rounded-2xl max-w-md w-full p-6 shadow-xl space-y-4">
+      <h3 class="text-lg font-bold text-slate-800">예문 추가</h3>
+      <p class="text-xs text-slate-500">줄바꿈을 통해 여러 개의 예문을 동시에 추가할 수 있습니다.</p>
+      <div>
+        <textarea id="input-new-examples" rows="5" placeholder="예: 元気な子供が走っている。&#10;예2: 彼は子供のように泣いた。" class="w-full p-3 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm font-mono leading-relaxed"></textarea>
+      </div>
+      <div class="flex justify-end gap-2 pt-2">
+        <button onclick="closeAddExampleModal()" class="px-4 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-100 rounded-lg">취소</button>
+        <button onclick="saveNewExamples()" class="px-4 py-2 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg shadow-sm">추가</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 예문 목록 및 TTS 청취 모달 -->
+  <div id="example-list-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 no-print">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-4">
+      <div class="flex justify-between items-center">
+        <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
+          <i class="fa-solid fa-list text-amber-500"></i> 등록된 예문 목록
+        </h3>
+        <button onclick="closeExampleListModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+      <div id="modal-example-items-container" class="space-y-2 max-h-60 overflow-y-auto text-xs pr-1"></div>
+      <div class="flex justify-end pt-2">
+        <button onclick="closeExampleListModal()" class="px-4 py-2 text-xs font-semibold bg-slate-500 hover:bg-slate-600 text-white rounded-lg">닫기</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 즐겨찾기 추출 모달 -->
   <div id="extract-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 no-print">
     <div class="bg-white rounded-2xl max-w-lg w-full p-6 shadow-xl space-y-4">
       <div class="flex justify-between items-center">
         <h3 class="text-lg font-bold text-slate-800 flex items-center gap-2">
-          <i class="fa-solid fa-star text-amber-400"></i> 별표(즐겨찾기) 단어 추출
+          <i class="fa-solid fa-star text-amber-400"></i> 즐겨찾기 추출
         </h3>
         <button onclick="closeExtractModal()" class="text-slate-400 hover:text-slate-600 text-lg"><i class="fa-solid fa-xmark"></i></button>
       </div>
       <div>
-        <p class="text-xs text-slate-500 mb-2">모든 시리즈에서 별표 체크된 단어들이 추출되었습니다.</p>
+        <p class="text-xs text-slate-500 mb-2">모든 시리즈에서 즐겨찾기(별표) 체크된 단어들이 추출되었습니다.</p>
         <textarea id="extract-textarea" rows="10" readonly class="w-full p-3 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-amber-500 text-sm font-mono leading-relaxed bg-slate-50"></textarea>
       </div>
       <div class="flex justify-end gap-2 pt-2">
@@ -346,7 +400,6 @@
   </div>
 
   <script>
-    // --- Firebase 초기화 및 설정 ---
     const firebaseConfig = {
       apiKey: "AIzaSyCQrPd0cc_VBJb16Jud-a_glGyXtkHcOL8",
       authDomain: "studywithmanga-8903a.firebaseapp.com",
@@ -364,7 +417,6 @@
     let currentUser = null;
     let isCloudLoading = false;
 
-    // --- Google 로그인 / 로그아웃 함수 ---
     function loginWithGoogle() {
       const provider = new firebase.auth.GoogleAuthProvider();
       auth.signInWithPopup(provider).catch(error => {
@@ -378,7 +430,28 @@
       });
     }
 
-    // --- 로그인 상태 감지 리스너 ---
+    function manualSyncCloudData() {
+      if (!currentUser) {
+        alert("로그인 후 이용 가능합니다!");
+        return;
+      }
+      isCloudLoading = true;
+      db.collection("users").doc(currentUser.uid).set({
+        appData,
+        wrongWordStats,
+        perfectStreaks,
+        episodeLastDates,
+        studyHistory,
+        lastUpdated: new Date().toISOString()
+      }).then(() => {
+        isCloudLoading = false;
+        alert("클라우드 서버에 성공적으로 동기화(저장)되었습니다! ☁️");
+      }).catch(err => {
+        isCloudLoading = false;
+        alert("동기화 실패: " + err.message);
+      });
+    }
+
     auth.onAuthStateChanged(user => {
       currentUser = user;
       const loginBtn = document.getElementById("login-btn");
@@ -390,26 +463,20 @@
         userInfo.classList.remove("hidden");
         userInfo.classList.add("flex");
         userNameDisplay.innerText = `${user.displayName || user.email}님`;
-        
-        // 로그인 성공 시 클라우드 데이터 로드
         loadCloudData(user.uid);
       } else {
         loginBtn.classList.remove("hidden");
         userInfo.classList.add("hidden");
         userInfo.classList.remove("flex");
-        
-        // 로그아웃 시 로컬 데이터만 로드
         initDataLocal();
       }
     });
 
-    // --- Firestore 클라우드 데이터 불러오기 (개선됨) ---
     function loadCloudData(uid) {
       isCloudLoading = true;
       db.collection("users").doc(uid).get().then(doc => {
         if (doc.exists) {
           const data = doc.data();
-          // 클라우드에 데이터가 있으면 클라우드 기준으로 덮어쓰기
           appData = data.appData || initialSeries;
           wrongWordStats = data.wrongWordStats || {};
           perfectStreaks = data.perfectStreaks || {};
@@ -419,22 +486,17 @@
           saveDataLocalOnly();
           renderHeatmap();
           renderSeriesList();
-          console.log("클라우드 데이터 불러오기 성공!");
         } else {
-          // 클라우드가 텅 비어있다면(첫 로그인), 현재 로컬에 있던 데이터를 클라우드로 즉시 업로드
-          console.log("클라우드 데이터가 없어 현재 로컬 데이터를 업로드합니다.");
           initDataLocal();
           saveCloudData();
         }
         isCloudLoading = false;
       }).catch(err => {
-        console.error("클라우드 데이터 로드 실패:", err);
         isCloudLoading = false;
         initDataLocal();
       });
     }
 
-    // --- Firestore 클라우드 데이터 저장하기 ---
     function saveCloudData() {
       if (!currentUser || isCloudLoading) return;
       db.collection("users").doc(currentUser.uid).set({
@@ -444,13 +506,8 @@
         episodeLastDates,
         studyHistory,
         lastUpdated: new Date().toISOString()
-      }).then(() => {
-        console.log("클라우드 자동 저장 완료!");
-      }).catch(err => {
-        console.error("클라우드 저장 실패:", err);
-      });
+      }).catch(err => {});
     }
-
 
     function parseWordLine(line) {
       if (!line) return null;
@@ -460,16 +517,20 @@
       
       const furigana = parts[1] ? parts[1].trim() : word;
       const meaning = parts[2] ? parts[2].trim() : "뜻 없음";
-      const note = parts[3] && parts[3] !== "true" && parts[3] !== "false" ? parts[3].trim() : "";
+      
+      let notes = [];
+      if (parts.length > 3) {
+        notes = parts.slice(3).map(p => p.trim()).filter(p => p !== "true" && p !== "false" && p !== "");
+      }
       const starred = line.includes(":true");
 
-      return { word, furigana, meaning, note, starred };
+      return { word, furigana, meaning, notes, starred };
     }
 
     const initialSeries = [
       {
         id: "series-sample-1",
-        title: "きみが死ぬまで恋를하고싶어",
+        title: "きみが死ぬまで恋をしたい",
         cover: null,
         episodes: [
           {
@@ -511,11 +572,8 @@
     let isFuriganaShown = false;
     let isMeaningShown = false;
     
-    let isSpeedMode = false;
+    let timerMode = 'none';
     let speedTimer = null;
-    const SPEED_LIMIT_SEC = 5;
-
-    let currentHeatmapView = 'year';
 
     function initDataLocal() {
       const stored = localStorage.getItem("jp_word_app_v12");
@@ -530,13 +588,19 @@
       episodeLastDates = storedDates ? safeJSONParse(storedDates, {}) : {};
       studyHistory = storedHistory ? safeJSONParse(storedHistory, {}) : {};
 
+      appData.forEach(s => s.episodes.forEach(e => e.words.forEach(w => {
+        if (w.note && (!w.notes || w.notes.length === 0)) {
+          w.notes = [w.note];
+        }
+        if (!w.notes) w.notes = [];
+      })));
+
       renderHeatmap();
       renderSeriesList();
       checkAndRestoreActiveTest();
     }
 
     function initData() {
-      //초기 구동 시 로그인 상태라면 authStateChanged에서 loadCloudData를 타므로 대기
       if (!auth.currentUser) {
         initDataLocal();
       }
@@ -557,22 +621,6 @@
     function saveData() {
       saveDataLocalOnly();
       saveCloudData();
-    }
-
-    function setHeatmapView(viewMode) {
-      currentHeatmapView = viewMode;
-      const btnYear = document.getElementById("btn-view-year");
-      const btnMonth = document.getElementById("btn-view-month");
-      const btnWeek = document.getElementById("btn-view-week");
-
-      const activeClass = "px-2.5 py-1 rounded-md bg-white text-indigo-600 shadow-sm transition-all";
-      const inactiveClass = "px-2.5 py-1 rounded-md text-slate-500 hover:text-slate-800 transition-all";
-
-      btnYear.className = viewMode === 'year' ? activeClass : inactiveClass;
-      btnMonth.className = viewMode === 'month' ? activeClass : inactiveClass;
-      btnWeek.className = viewMode === 'week' ? activeClass : inactiveClass;
-
-      renderHeatmap();
     }
 
     function renderHeatmap() {
@@ -602,12 +650,7 @@
       document.getElementById("streak-info-text").innerText = `연속 학습: ${streak}일째 🔥`;
 
       let totalDays = 364;
-      if (currentHeatmapView === 'month') totalDays = 29;
-      else if (currentHeatmapView === 'week') totalDays = 6;
-
       let tileWidthClass = "w-3 h-3";
-      if (currentHeatmapView === 'month') tileWidthClass = "w-7 h-7 text-[10px]";
-      else if (currentHeatmapView === 'week') tileWidthClass = "w-10 h-10 text-xs";
 
       const startDate = new Date(today);
       startDate.setDate(startDate.getDate() - totalDays);
@@ -631,10 +674,6 @@
         cell.className = `${tileWidthClass} rounded-sm border flex items-center justify-center transition-all cursor-default ${bgClass}`;
         cell.title = `${dateStr}: ${count}회독 완료`;
 
-        if (currentHeatmapView !== 'year') {
-          cell.innerText = d.getDate();
-        }
-
         grid.appendChild(cell);
       }
     }
@@ -649,6 +688,19 @@
       studyHistory[todayStr] = (studyHistory[todayStr] || 0) + 1;
       saveData();
       renderHeatmap();
+    }
+
+    function onTimerModeChange() {
+      const select = document.getElementById("timer-mode-select");
+      const customWrapper = document.getElementById("custom-timer-input-wrapper");
+      timerMode = select.value;
+      if (timerMode === 'custom') {
+        customWrapper.classList.remove("hidden");
+        customWrapper.classList.add("flex");
+      } else {
+        customWrapper.classList.add("hidden");
+        customWrapper.classList.remove("flex");
+      }
     }
 
     function startRandomMockExam() {
@@ -675,8 +727,6 @@
       currentRound = 1;
       activeTestedEpisodeKeys = [];
 
-      isSpeedMode = document.getElementById("speed-mode-toggle").checked;
-
       showSection('test');
       saveActiveTestState();
       renderCurrentCard();
@@ -687,7 +737,7 @@
       const timerContainer = document.getElementById("speed-timer-bar-container");
       const timerBar = document.getElementById("speed-timer-bar");
 
-      if (!isSpeedMode) {
+      if (timerMode === 'none') {
         timerContainer.classList.add("hidden");
         return;
       }
@@ -695,9 +745,15 @@
       timerContainer.classList.remove("hidden");
       timerBar.style.width = "100%";
 
+      let limitSec = 5;
+      if (timerMode === 'custom') {
+        const val = parseInt(document.getElementById("custom-timer-sec").value);
+        limitSec = isNaN(val) ? 5 : Math.max(3, Math.min(30, val));
+      }
+
       let elapsed = 0;
       const interval = 100;
-      const totalSteps = (SPEED_LIMIT_SEC * 1000) / interval;
+      const totalSteps = (limitSec * 1000) / interval;
 
       speedTimer = setInterval(() => {
         elapsed++;
@@ -718,7 +774,7 @@
       if (!ep || ep.words.length === 0) return alert("출력할 단어가 없습니다.");
 
       const todayStr = new Date().toISOString().slice(0, 10);
-      document.getElementById("print-title").innerText = `${series.title} - ${ep.title} 회독 시험지`;
+      document.getElementById("print-title").innerText = `${series.title} - ${ep.title} 따라쓰기 학습지`;
       document.getElementById("print-date-label").innerText = `일자: ${todayStr}`;
 
       const grid = document.getElementById("print-word-grid");
@@ -726,26 +782,24 @@
 
       ep.words.forEach((w, idx) => {
         const row = document.createElement("div");
-        row.className = "flex items-center justify-between border-b border-slate-200 pb-2";
+        row.className = "flex items-center justify-between border-b border-slate-300 py-2 px-1";
         row.innerHTML = `
-          <div class="font-bold text-base"><span class="text-slate-400 text-xs mr-2">${idx + 1}.</span> ${escapeHtml(w.word)}</div>
-          <div class="text-xs text-slate-300 border-b border-dashed border-slate-400 w-36 text-center">뜻/발음 기입</div>
+          <div class="font-bold text-xs w-1/3 pr-2">
+            <span class="text-slate-400 mr-1">${idx + 1}.</span> ${escapeHtml(w.word)} 
+            <span class="text-[11px] text-indigo-600 font-normal">(${escapeHtml(w.furigana || w.word)})</span>
+            <div class="text-[11px] text-slate-500 font-normal truncate">${escapeHtml(w.meaning)}</div>
+          </div>
+          <div class="flex gap-1 w-2/3 justify-end">
+            <div class="border border-slate-300 h-7 w-1/4 rounded bg-slate-50"></div>
+            <div class="border border-slate-300 h-7 w-1/4 rounded bg-slate-50"></div>
+            <div class="border border-slate-300 h-7 w-1/4 rounded bg-slate-50"></div>
+            <div class="border border-slate-300 h-7 w-1/4 rounded bg-slate-50"></div>
+          </div>
         `;
         grid.appendChild(row);
       });
 
-      const mainEl = document.querySelector("main");
-      const printArea = document.getElementById("print-area");
-
-      mainEl.classList.add("hidden");
-      printArea.classList.remove("hidden");
-
       window.print();
-
-      setTimeout(() => {
-        printArea.classList.add("hidden");
-        mainEl.classList.remove("hidden");
-      }, 500);
     }
 
     function saveActiveTestState() {
@@ -753,7 +807,7 @@
         localStorage.removeItem("jp_active_test_session");
         return;
       }
-      const sessionState = { testQueue, nextRoundQueue, currentCardIndex, currentRound, sessionWrongCounts, activeTestedEpisodeKeys, isSpeedMode };
+      const sessionState = { testQueue, nextRoundQueue, currentCardIndex, currentRound, sessionWrongCounts, activeTestedEpisodeKeys, timerMode };
       localStorage.setItem("jp_active_test_session", JSON.stringify(sessionState));
     }
 
@@ -771,7 +825,7 @@
             currentRound = parsed.currentRound || 1;
             sessionWrongCounts = parsed.sessionWrongCounts || {};
             activeTestedEpisodeKeys = parsed.activeTestedEpisodeKeys || [];
-            isSpeedMode = !!parsed.isSpeedMode;
+            timerMode = parsed.timerMode || 'none';
 
             showSection('test');
             renderCurrentCard();
@@ -813,6 +867,107 @@
       if (icon) icon.className = isStarred ? "fa-solid fa-star text-amber-400" : "fa-regular fa-star text-slate-300";
     }
 
+    function openAddExampleModal() {
+      document.getElementById("input-new-examples").value = "";
+      document.getElementById("add-example-modal").classList.remove("hidden");
+    }
+
+    function closeAddExampleModal() {
+      document.getElementById("add-example-modal").classList.add("hidden");
+    }
+
+    function saveNewExamples() {
+      const text = document.getElementById("input-new-examples").value.trim();
+      if (!text) return alert("추가할 예문을 입력해주세요.");
+
+      const currentItem = testQueue[currentCardIndex];
+      if (!currentItem) return;
+
+      const newLines = text.split("\n").map(l => l.trim()).filter(Boolean);
+      if (!currentItem.notes) currentItem.notes = [];
+      currentItem.notes = currentItem.notes.concat(newLines);
+
+      appData.forEach(s => {
+        s.episodes.forEach(e => {
+          e.words.forEach(w => {
+            if (w.word === currentItem.word) {
+              if (!w.notes) w.notes = [];
+              w.notes = currentItem.notes;
+            }
+          });
+        });
+      });
+
+      saveData();
+      closeAddExampleModal();
+      alert("예문이 성공적으로 추가되었습니다!");
+    }
+
+    function openExampleListModal() {
+      const currentItem = testQueue[currentCardIndex];
+      if (!currentItem) return;
+
+      const container = document.getElementById("modal-example-items-container");
+      container.innerHTML = "";
+
+      const notes = currentItem.notes || [];
+      if (notes.length === 0) {
+        container.innerHTML = `<p class="text-slate-400 text-center py-4">등록된 예문이 없습니다. [예문 추가] 버튼을 눌러 예문을 추가해보세요!</p>`;
+      } else {
+        notes.forEach((note, idx) => {
+          const row = document.createElement("div");
+          row.className = "flex items-center justify-between bg-slate-50 p-2.5 rounded-lg border border-slate-200 gap-2";
+          row.innerHTML = `
+            <div class="font-medium text-slate-700 flex-1 break-words"><span class="text-slate-400 mr-2">${idx + 1}.</span>${escapeHtml(note)}</div>
+            <div class="flex items-center gap-1 shrink-0">
+              <button onclick="playSpecificTTS('${escapeHtml(note).replace(/'/g, "\\'")}')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-600 px-2.5 py-1 rounded text-xs font-bold transition-colors flex items-center gap-1">
+                <i class="fa-solid fa-volume-high"></i> 듣기
+              </button>
+              <button onclick="deleteExample(${idx})" class="text-slate-400 hover:text-rose-600 p-1 text-xs" title="삭제"><i class="fa-solid fa-trash"></i></button>
+            </div>
+          `;
+          container.appendChild(row);
+        });
+      }
+
+      document.getElementById("example-list-modal").classList.remove("hidden");
+    }
+
+    function closeExampleListModal() {
+      document.getElementById("example-list-modal").classList.add("hidden");
+    }
+
+    function deleteExample(idx) {
+      if (!confirm("해당 예문을 삭제하시겠습니까?")) return;
+      const currentItem = testQueue[currentCardIndex];
+      if (!currentItem || !currentItem.notes) return;
+
+      currentItem.notes.splice(idx, 1);
+
+      appData.forEach(s => {
+        s.episodes.forEach(e => {
+          e.words.forEach(w => {
+            if (w.word === currentItem.word) {
+              w.notes = currentItem.notes;
+            }
+          });
+        });
+      });
+
+      saveData();
+      openExampleListModal();
+    }
+
+    function playSpecificTTS(text) {
+      if ('speechSynthesis' in window) {
+        window.speechSynthesis.cancel();
+        const utter = new SpeechSynthesisUtterance(text);
+        utter.lang = 'ja-JP';
+        utter.rate = 0.9;
+        window.speechSynthesis.speak(utter);
+      }
+    }
+
     function startStarredWordsTest() {
       let starredWordsList = [];
       appData.forEach(s => {
@@ -825,7 +980,7 @@
         });
       });
 
-      if (starredWordsList.length === 0) return alert("별표(즐겨찾기) 단어가 없습니다!");
+      if (starredWordsList.length === 0) return alert("즐겨찾기 단어가 없습니다!");
 
       sessionWrongCounts = {};
       testQueue = shuffleArray([...starredWordsList]);
@@ -833,7 +988,6 @@
       currentCardIndex = 0;
       currentRound = 1;
       activeTestedEpisodeKeys = []; 
-      isSpeedMode = document.getElementById("speed-mode-toggle").checked;
 
       showSection('test');
       saveActiveTestState();
@@ -841,11 +995,11 @@
     }
 
     function resetAllStarredWords() {
-      if (!confirm("모든 별표(즐겨찾기)를 초기화하시겠습니까?")) return;
+      if (!confirm("모든 즐겨찾기 단어 목록을 초기화하시겠습니까?")) return;
       appData.forEach(s => { s.episodes.forEach(e => { e.words.forEach(w => { w.starred = false; }); }); });
       saveData();
       renderSeriesList();
-      alert("모든 별표가 초기화되었습니다.");
+      alert("즐겨찾기 단어 목록이 초기화되었습니다.");
     }
 
     function openExtractModal() {
@@ -860,8 +1014,11 @@
         });
       });
 
-      if (starredWordsList.length === 0) return alert("추출할 별표 단어가 없습니다!");
-      const formattedLines = starredWordsList.map(w => `${w.word}:${w.furigana || w.word}:${w.meaning}${w.note ? ':' + w.note : ''}`).join("\n");
+      if (starredWordsList.length === 0) return alert("추출할 즐겨찾기 단어가 없습니다!");
+      const formattedLines = starredWordsList.map(w => {
+        const notesStr = w.notes && w.notes.length > 0 ? ':' + w.notes.join(':') : '';
+        return `${w.word}:${w.furigana || w.word}:${w.meaning}${notesStr}`;
+      }).join("\n");
       document.getElementById("extract-textarea").value = formattedLines;
       document.getElementById("extract-modal").classList.remove("hidden");
     }
@@ -894,6 +1051,20 @@
 
       document.getElementById("series-extract-title").innerHTML = `<i class="fa-solid fa-box-archive text-indigo-500"></i> ${escapeHtml(series.title)} 전체 단어 추출`;
 
+      const btnFull = document.getElementById("tab-format-full");
+      const btnWord = document.getElementById("tab-format-word");
+
+      const activeStyle = "flex-1 py-1.5 text-xs font-bold rounded-md bg-white text-indigo-600 shadow-sm transition-all";
+      const inactiveStyle = "flex-1 py-1.5 text-xs font-bold rounded-md text-slate-500 hover:text-slate-800 transition-all";
+
+      if (currentExtractFormat === 'full') {
+        btnFull.className = activeStyle;
+        btnWord.className = inactiveStyle;
+      } else {
+        btnFull.className = inactiveStyle;
+        btnWord.className = activeStyle;
+      }
+
       let combinedWords = [];
       series.episodes.forEach(ep => {
         ep.words.forEach(w => {
@@ -902,7 +1073,10 @@
       });
 
       let resultText = currentExtractFormat === 'full' 
-        ? combinedWords.map(w => `${w.word}:${w.furigana || w.word}:${w.meaning}${w.note ? ':' + w.note : ''}`).join("\n")
+        ? combinedWords.map(w => {
+            const notesStr = w.notes && w.notes.length > 0 ? ':' + w.notes.join(':') : '';
+            return `${w.word}:${w.furigana || w.word}:${w.meaning}${notesStr}`;
+          }).join("\n")
         : combinedWords.map(w => w.word).join("\n");
 
       document.getElementById("series-extract-textarea").value = resultText;
@@ -1037,7 +1211,7 @@
                 <div class="flex items-center gap-2 shrink-0">
                   ${statusBadgeHtml}
                   <div class="flex items-center gap-1">
-                    <button onclick="printEpisodeExam('${series.id}', '${ep.id}')" title="A4 인쇄 시험지" class="text-slate-400 hover:text-indigo-600 p-1 text-xs"><i class="fa-solid fa-print"></i></button>
+                    <button onclick="printEpisodeExam('${series.id}', '${ep.id}')" title="따라쓰기 학습지 인쇄" class="text-slate-400 hover:text-indigo-600 p-1 text-xs"><i class="fa-solid fa-print"></i></button>
                     <button onclick="openEpisodeModal('${series.id}', '${ep.id}')" class="text-slate-400 hover:text-indigo-600 p-1 text-xs"><i class="fa-solid fa-pen"></i></button>
                     <button onclick="deleteEpisode('${series.id}', '${ep.id}')" class="text-slate-400 hover:text-rose-500 p-1 text-xs"><i class="fa-solid fa-trash"></i></button>
                   </div>
@@ -1063,7 +1237,7 @@
               </div>
             </div>
           </div>
-          <div class="p-3 space-y-1.5 flex-1 max-h-56 overflow-y-auto">${episodesHtml}</div>
+          <div class="p-3 space-y-1.5 flex-1">${episodesHtml}</div>
         `;
         container.appendChild(card);
       });
@@ -1168,7 +1342,10 @@
         const ep = series.episodes.find(e => e.id === epId);
         document.getElementById("episode-modal-title").innerText = "회차 수정";
         titleInput.value = ep.title;
-        wordsInput.value = ep.words.map(w => `${w.word}:${w.furigana}:${w.meaning}${w.note ? ':' + w.note : ''}`).join("\n");
+        wordsInput.value = ep.words.map(w => {
+          const notesStr = w.notes && w.notes.length > 0 ? ':' + w.notes.join(':') : '';
+          return `${w.word}:${w.furigana}:${w.meaning}${notesStr}`;
+        }).join("\n");
       } else {
         document.getElementById("episode-modal-title").innerText = "회차 추가";
         titleInput.value = "";
@@ -1231,7 +1408,6 @@
       nextRoundQueue = [];
       currentCardIndex = 0;
       currentRound = 1;
-      isSpeedMode = document.getElementById("speed-mode-toggle").checked;
 
       showSection('test');
       saveActiveTestState();
@@ -1239,14 +1415,18 @@
     }
 
     function startWrongWordsTest() {
-      const wrongKeys = Object.keys(wrongWordStats).filter(key => wrongWordStats[key] > 0);
-      if (wrongKeys.length === 0) return alert("오답 노트에 기록된 단어가 없습니다!");
+      const sortedKeys = Object.keys(wrongWordStats)
+        .filter(key => wrongWordStats[key] > 0)
+        .sort((a, b) => wrongWordStats[b] - wrongWordStats[a])
+        .slice(0, 50);
+
+      if (sortedKeys.length === 0) return alert("많이 틀린 단어(오답 노트)에 기록된 단어가 없습니다!");
 
       let wrongWordsList = [];
       appData.forEach(s => {
         s.episodes.forEach(e => {
           e.words.forEach(w => {
-            if (wrongKeys.includes(w.word) && !wrongWordsList.some(item => item.word === w.word)) {
+            if (sortedKeys.includes(w.word) && !wrongWordsList.some(item => item.word === w.word)) {
               wrongWordsList.push(w);
             }
           });
@@ -1254,12 +1434,11 @@
       });
 
       sessionWrongCounts = {};
-      testQueue = shuffleArray([...wrongWordsList]);
+      testQueue = shuffleArray([...wrongWordsList]).slice(0, 50);
       nextRoundQueue = [];
       currentCardIndex = 0;
       currentRound = 1;
       activeTestedEpisodeKeys = []; 
-      isSpeedMode = document.getElementById("speed-mode-toggle").checked;
 
       showSection('test');
       saveActiveTestState();
@@ -1298,14 +1477,6 @@
       const meaningEl = document.getElementById("card-meaning");
       meaningEl.innerText = item.meaning || "뜻 없음";
       meaningEl.classList.add("opacity-0");
-
-      const noteBox = document.getElementById("card-note-box");
-      if (item.note) {
-        noteBox.innerText = `💡 예문/메모: ${item.note}`;
-        noteBox.classList.remove("hidden");
-      } else {
-        noteBox.classList.add("hidden");
-      }
 
       document.getElementById("hint-furigana-label").innerText = "클릭하여 발음 확인";
       document.getElementById("hint-meaning-label").innerText = "클릭하여 한국어 뜻 확인";
@@ -1386,6 +1557,36 @@
       else { el.classList.add("opacity-0"); label.innerText = "클릭하여 한국어 뜻 확인"; }
     }
 
+    function toggleBothFuriganaAndMeaning() {
+      const fEl = document.getElementById("card-furigana");
+      const mEl = document.getElementById("card-meaning");
+      const fLabel = document.getElementById("hint-furigana-label");
+      const mLabel = document.getElementById("hint-meaning-label");
+
+      if (!isFuriganaShown || !isMeaningShown) {
+        isFuriganaShown = true;
+        isMeaningShown = true;
+        fEl.classList.remove("opacity-0");
+        mEl.classList.remove("opacity-0");
+        fLabel.innerText = "가리기";
+        mLabel.innerText = "가리기";
+      } else {
+        isFuriganaShown = false;
+        isMeaningShown = false;
+        fEl.classList.add("opacity-0");
+        mEl.classList.add("opacity-0");
+        fLabel.innerText = "클릭하여 발음 확인";
+        mLabel.innerText = "클릭하여 한국어 뜻 확인";
+      }
+    }
+
+    function openDetailSearch() {
+      const currentItem = testQueue[currentCardIndex];
+      if (!currentItem || !currentItem.word) return;
+      const targetUrl = `https://nihongokanji.com/?s=${encodeURIComponent(currentItem.word)}`;
+      window.open(targetUrl, '_blank');
+    }
+
     function markCorrect() {
       currentCardIndex++;
       renderCurrentCard();
@@ -1419,12 +1620,14 @@
 
     document.addEventListener("keydown", (e) => {
       if (document.getElementById("view-test").classList.contains("hidden")) return;
-      if (['INPUT', 'TEXTAREA'].includes(document.activeElement.tagName)) return;
+      if (['INPUT', 'TEXTAREA', 'SELECT'].includes(document.activeElement.tagName)) return;
 
       if (e.key === 'ArrowLeft') markIncorrect();
       else if (e.key === 'ArrowRight') markCorrect();
       else if (e.key.toLowerCase() === 'a') toggleFurigana();
       else if (e.key.toLowerCase() === 's') toggleMeaning();
+      else if (e.key.toLowerCase() === 'd') toggleBothFuriganaAndMeaning();
+      else if (e.key.toLowerCase() === 'f') toggleCurrentWordStar();
       else if (e.code === 'Space') { e.preventDefault(); playCurrentTTS(); }
     });
 
