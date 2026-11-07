@@ -288,7 +288,7 @@
         <h1 id="print-title" class="text-xl font-bold tracking-tight">StudyWithManga - 단어 따라쓰기 학습지</h1>
         <div class="flex justify-between items-center text-xs text-slate-500 mt-1">
           <span>성명: ____________________</span>
-          <span id="print-date-label">일자: 2026-11-06</span>
+          <span id="print-date-label">일자: 2026-11-07</span>
         </div>
       </div>
       <div id="print-word-grid" class="grid grid-cols-1 gap-y-2 text-sm"></div>
@@ -297,7 +297,7 @@
 
   <!-- MODALS -->
 
-  <!-- 회독 히스토리 모달 (기간 조회 필터 포함) -->
+  <!-- 회독 히스토리 모달 -->
   <div id="history-modal" class="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center hidden p-4 no-print">
     <div class="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-xl space-y-4 max-h-[85vh] flex flex-col">
       <div class="flex justify-between items-center shrink-0">
@@ -340,7 +340,7 @@
       <h3 id="series-modal-title" class="text-lg font-bold text-slate-800">새 시리즈 추가</h3>
       <div>
         <label class="block text-xs font-semibold text-slate-600 mb-1">시리즈 제목</label>
-        <input type="text" id="input-series-title" placeholder="예: きみが死ぬまで恋をしたい" class="w-full px-3.5 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
+        <input type="text" id="input-series-title" placeholder="예: きみが死ぬまで恋를하고싶어" class="w-full px-3.5 py-2 rounded-lg border border-slate-300 focus:outline-none focus:ring-2 focus:ring-indigo-500 text-sm">
       </div>
       <div>
         <label class="block text-xs font-semibold text-slate-600 mb-1">표지 이미지 업로드 (JPG, PNG, WEBP)</label>
@@ -492,8 +492,7 @@
       db.collection("users").doc(currentUser.uid).set({
         appData,
         wrongWordStats,
-        perfectStreaks,
-        episodeLastDates,
+        masterStatus,
         studyHistory,
         studyDetailedHistory,
         lastUpdated: new Date().toISOString()
@@ -533,8 +532,7 @@
           const data = doc.data();
           appData = data.appData || initialSeries;
           wrongWordStats = data.wrongWordStats || {};
-          perfectStreaks = data.perfectStreaks || {};
-          episodeLastDates = data.episodeLastDates || {};
+          masterStatus = data.masterStatus || {};
           studyHistory = data.studyHistory || {};
           studyDetailedHistory = data.studyDetailedHistory || [];
 
@@ -557,8 +555,7 @@
       db.collection("users").doc(currentUser.uid).set({
         appData,
         wrongWordStats,
-        perfectStreaks,
-        episodeLastDates,
+        masterStatus,
         studyHistory,
         studyDetailedHistory,
         lastUpdated: new Date().toISOString()
@@ -608,8 +605,7 @@
 
     let appData = [];
     let wrongWordStats = {};
-    let perfectStreaks = {}; 
-    let episodeLastDates = {}; 
+    let masterStatus = {}; // 수동 MASTER 부여 상태 기록 (key: true/false)
     let studyHistory = {}; 
     let studyDetailedHistory = [];
     let selectedEpisodeKeys = new Set();
@@ -635,15 +631,13 @@
     function initDataLocal() {
       const stored = localStorage.getItem("jp_word_app_v12");
       const storedStats = localStorage.getItem("jp_word_stats_v12");
-      const storedStreaks = localStorage.getItem("jp_word_streaks_v12"); 
-      const storedDates = localStorage.getItem("jp_word_dates_v12"); 
+      const storedMaster = localStorage.getItem("jp_word_master_v12"); // 수동 마스터 데이터
       const storedHistory = localStorage.getItem("jp_word_history_v12");
       const storedDetailedHistory = localStorage.getItem("jp_word_detailed_history_v12");
 
       appData = stored ? safeJSONParse(stored, initialSeries) : initialSeries;
       wrongWordStats = storedStats ? safeJSONParse(storedStats, {}) : {};
-      perfectStreaks = storedStreaks ? safeJSONParse(storedStreaks, {}) : {};
-      episodeLastDates = storedDates ? safeJSONParse(storedDates, {}) : {};
+      masterStatus = storedMaster ? safeJSONParse(storedMaster, {}) : {};
       studyHistory = storedHistory ? safeJSONParse(storedHistory, {}) : {};
       studyDetailedHistory = storedDetailedHistory ? safeJSONParse(storedDetailedHistory, []) : [];
 
@@ -672,8 +666,7 @@
     function saveDataLocalOnly() {
       localStorage.setItem("jp_word_app_v12", JSON.stringify(appData));
       localStorage.setItem("jp_word_stats_v12", JSON.stringify(wrongWordStats));
-      localStorage.setItem("jp_word_streaks_v12", JSON.stringify(perfectStreaks)); 
-      localStorage.setItem("jp_word_dates_v12", JSON.stringify(episodeLastDates)); 
+      localStorage.setItem("jp_word_master_v12", JSON.stringify(masterStatus));
       localStorage.setItem("jp_word_history_v12", JSON.stringify(studyHistory));
       localStorage.setItem("jp_word_detailed_history_v12", JSON.stringify(studyDetailedHistory));
     }
@@ -787,7 +780,6 @@
       saveData();
     }
 
-    // 회독 히스토리 모달 열기 (기본 오늘 날짜 세팅)
     function openHistoryModal() {
       const today = new Date().toISOString().slice(0, 10);
       document.getElementById("history-start-date").value = today;
@@ -1261,7 +1253,7 @@
     }
 
     function exportData() {
-      const exportObj = { appData, wrongWordStats, perfectStreaks, episodeLastDates, studyHistory, studyDetailedHistory };
+      const exportObj = { appData, wrongWordStats, masterStatus, studyHistory, studyDetailedHistory };
       const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportObj, null, 2));
       const downloadAnchor = document.createElement('a');
       downloadAnchor.setAttribute("href", dataStr);
@@ -1282,8 +1274,7 @@
           if (imported.appData) {
             appData = imported.appData;
             wrongWordStats = imported.wrongWordStats || {};
-            perfectStreaks = imported.perfectStreaks || {};
-            episodeLastDates = imported.episodeLastDates || {};
+            masterStatus = imported.masterStatus || {};
             studyHistory = imported.studyHistory || {};
             studyDetailedHistory = imported.studyDetailedHistory || [];
           }
@@ -1319,30 +1310,11 @@
       }
     }
 
-    function getSpacingBadge(dateStr) {
-      if (!dateStr) return `<span class="text-[11px] text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">학습 전</span>`;
-
-      const lastDate = new Date(dateStr);
-      const today = new Date();
-      lastDate.setHours(0,0,0,0);
-      today.setHours(0,0,0,0);
-      
-      const diffDays = Math.round((today - lastDate) / (1000 * 60 * 60 * 24));
-      const reviewTargets = [1, 3, 7, 14, 30];
-      const isGoldenTime = reviewTargets.includes(diffDays);
-
-      let badgeColor = "bg-slate-100 text-slate-500";
-      let textDesc = `D+${diffDays}일 (${dateStr})`;
-
-      if (isGoldenTime) {
-        badgeColor = "bg-amber-100 text-amber-700 font-bold border border-amber-300 animate-pulse";
-        textDesc = `🔥 ${diffDays}일째 복습 골든타임!`;
-      } else if (diffDays === 0) {
-        textDesc = `오늘 완료 (${dateStr})`;
-        badgeColor = "bg-emerald-50 text-emerald-600 font-semibold";
-      }
-
-      return `<span class="text-[10px] px-2 py-0.5 rounded-full ${badgeColor}">${textDesc}</span>`;
+    // 수동 MASTER 토글 함수
+    function toggleMasterStatus(key) {
+      masterStatus[key] = !masterStatus[key];
+      saveData();
+      renderSeriesList();
     }
 
     function renderSeriesList() {
@@ -1369,12 +1341,13 @@
           series.episodes.forEach(ep => {
             const key = `${series.id}:${ep.id}`;
             const isChecked = selectedEpisodeKeys.has(key) ? "checked" : "";
-            const isMaster = (perfectStreaks[key] || 0) >= 3;
+            const isMaster = !!masterStatus[key]; // 수동 설정된 마스터 여부
             const wordCount = ep.words ? ep.words.length : 0;
             
-            const statusBadgeHtml = isMaster 
-              ? `<span class="bg-amber-100 text-amber-700 text-[10px] font-extrabold px-1.5 py-0.5 rounded border border-amber-300 flex items-center gap-1"><i class="fa-solid fa-crown text-amber-500"></i> MASTER</span>`
-              : getSpacingBadge(episodeLastDates[key]);
+            // MASTER 배지 버튼 (클릭 시 토글되어 언제든 스스로 부여/해제 가능)
+            const masterBadgeHtml = isMaster
+              ? `<button onclick="toggleMasterStatus('${key}')" title="마스터 해제" class="bg-amber-100 hover:bg-amber-200 text-amber-700 text-[10px] font-extrabold px-2 py-0.5 rounded border border-amber-300 flex items-center gap-1 transition shadow-sm"><i class="fa-solid fa-crown text-amber-500"></i> MASTER</button>`
+              : `<button onclick="toggleMasterStatus('${key}')" title="마스터 부여" class="bg-slate-100 hover:bg-amber-50 text-slate-400 hover:text-amber-600 text-[10px] font-semibold px-2 py-0.5 rounded border border-slate-200 flex items-center gap-1 transition"><i class="fa-regular fa-crown"></i> MASTER 부여</button>`;
 
             episodesHtml += `
               <div class="flex items-center justify-between py-2 px-3 hover:bg-slate-50 rounded-lg transition-colors border border-slate-100 gap-2">
@@ -1384,7 +1357,7 @@
                   <span class="text-[11px] font-bold text-indigo-600 bg-indigo-50 px-2 py-0.5 rounded shrink-0">${wordCount}단어</span>
                 </label>
                 <div class="flex items-center gap-2 shrink-0">
-                  ${statusBadgeHtml}
+                  ${masterBadgeHtml}
                   <div class="flex items-center gap-1">
                     <button onclick="printEpisodeExam('${series.id}', '${ep.id}')" title="따라쓰기 학습지 인쇄" class="text-slate-400 hover:text-indigo-600 p-1 text-xs"><i class="fa-solid fa-print"></i></button>
                     <button onclick="openEpisodeModal('${series.id}', '${ep.id}')" class="text-slate-400 hover:text-indigo-600 p-1 text-xs"><i class="fa-solid fa-pen"></i></button>
@@ -1713,29 +1686,13 @@
       const day = String(now.getDate()).padStart(2, '0');
       const todayStr = `${year}-${month}-${day}`;
 
-      const isPerfectScore = Object.keys(sessionWrongCounts).length === 0;
       const masterMsgEl = document.getElementById("complete-master-msg");
 
       recordStudyActivity(); 
       recordDetailedHistory();
 
       if (activeTestedEpisodeKeys.length > 0) {
-        activeTestedEpisodeKeys.forEach(epKey => {
-          episodeLastDates[epKey] = todayStr;
-          if (isPerfectScore) {
-            perfectStreaks[epKey] = (perfectStreaks[epKey] || 0) + 1;
-          }
-        });
-        saveData();
-
-        let masteredCount = activeTestedEpisodeKeys.filter(k => (perfectStreaks[k] || 0) >= 3).length;
-        if (isPerfectScore && masteredCount > 0) {
-          masterMsgEl.innerHTML = `🎉 축하합니다! 완벽한 만점 클리어로 <span class="bg-amber-100 text-amber-700 px-1.5 py-0.5 rounded border border-amber-300 font-bold"><i class="fa-solid fa-crown"></i> MASTER</span> 태그를 달성했습니다!`;
-        } else if (isPerfectScore) {
-          masterMsgEl.innerText = `만점 클리어 완료! (마지막 학습일: ${todayStr})`;
-        } else {
-          masterMsgEl.innerText = `회독 완료! 마지막 학습일(${todayStr})이 기록되었습니다.`;
-        }
+        masterMsgEl.innerText = `회독 완료! 오늘 날짜(${todayStr}) 히스토리에 기록되었습니다. 필요시 목록에서 마스터 딱지를 부여해 보세요!`;
       } else {
         masterMsgEl.innerText = "모의고사 회독 시험을 완료하셨습니다.";
       }
